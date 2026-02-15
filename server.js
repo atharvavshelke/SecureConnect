@@ -39,10 +39,18 @@ db.serialize(() => {
         from_user INTEGER NOT NULL,
         to_user INTEGER NOT NULL,
         encrypted_content TEXT NOT NULL,
+        is_read INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (from_user) REFERENCES users (id),
         FOREIGN KEY (to_user) REFERENCES users (id)
-    )`);
+    )`, (err) => {
+        if (!err) {
+            // Attempt to add is_read column if it doesn't exist (for existing databases)
+            db.run("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0", (err) => {
+                // Ignore error if column already exists
+            });
+        }
+    });
 
     // Credit transactions table
     db.run(`CREATE TABLE IF NOT EXISTS credit_transactions (
@@ -86,7 +94,7 @@ app.set('views', './views');
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
     const token = req.cookies.token || req.headers['authorization']?.split(' ')[1];
-    
+
     if (!token) {
         return res.status(401).json({ error: 'Access denied' });
     }
@@ -131,11 +139,11 @@ app.post('/api/register', async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        
+
         db.run(
             'INSERT INTO users (username, password, email, public_key, credits) VALUES (?, ?, ?, ?, ?)',
             [username, hashedPassword, email, publicKey, 10], // 10 free credits
-            function(err) {
+            function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE')) {
                         return res.status(400).json({ error: 'Username or email already exists' });
@@ -150,11 +158,11 @@ app.post('/api/register', async (req, res) => {
                 );
 
                 res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
-                res.json({ 
-                    message: 'Registration successful', 
+                res.json({
+                    message: 'Registration successful',
                     token,
                     userId: this.lastID,
-                    username 
+                    username
                 });
             }
         );
@@ -184,8 +192,8 @@ app.post('/api/login', (req, res) => {
         );
 
         res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
-        res.json({ 
-            message: 'Login successful', 
+        res.json({
+            message: 'Login successful',
             token,
             userId: user.id,
             username: user.username,
@@ -197,8 +205,8 @@ app.post('/api/login', (req, res) => {
 
 // Get user info
 app.get('/api/user/me', authenticateToken, (req, res) => {
-    db.get('SELECT id, username, email, credits, public_key FROM users WHERE id = ?', 
-        [req.user.id], 
+    db.get('SELECT id, username, email, credits, public_key FROM users WHERE id = ?',
+        [req.user.id],
         (err, user) => {
             if (err || !user) {
                 return res.status(404).json({ error: 'User not found' });
@@ -222,10 +230,65 @@ app.get('/api/users', authenticateToken, (req, res) => {
     );
 });
 
+// Search users
+app.get('/api/users/search', authenticateToken, (req, res) => {
+    const query = req.query.q;
+    if (!query) return res.json([]);
+
+    db.all(
+        `SELECT id, username, public_key FROM users 
+         WHERE id != ? AND username LIKE ? 
+         LIMIT 20`,
+        [req.user.id, `%${query}%`],
+        (err, users) => {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to search users' });
+            }
+            res.json(users);
+        }
+    );
+});
+
+// Get recent chats with unread counts
+app.get('/api/chats', authenticateToken, (req, res) => {
+    const currentUserId = req.user.id;
+
+    const sql = `
+        SELECT 
+            u.id, 
+            u.username, 
+            u.public_key,
+            MAX(m.created_at) as last_message_time,
+            SUM(CASE WHEN m.to_user = ? AND m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
+        FROM users u
+        JOIN messages m ON (m.from_user = u.id AND m.to_user = ?) OR (m.from_user = ? AND m.to_user = u.id)
+        WHERE u.id != ?
+        GROUP BY u.id
+        ORDER BY unread_count DESC, last_message_time DESC
+    `;
+
+    db.all(sql, [currentUserId, currentUserId, currentUserId, currentUserId], (err, chats) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Failed to fetch chats' });
+        }
+        res.json(chats);
+    });
+});
+
 // Get chat history with a specific user
 app.get('/api/messages/:userId', authenticateToken, (req, res) => {
     const otherUserId = req.params.userId;
     const currentUserId = req.user.id;
+
+    // Mark messages from this user as read
+    db.run(
+        'UPDATE messages SET is_read = 1 WHERE from_user = ? AND to_user = ? AND is_read = 0',
+        [otherUserId, currentUserId],
+        (err) => {
+            if (err) console.error('Failed to mark messages as read:', err);
+        }
+    );
 
     db.all(
         `SELECT m.*, u.username as fromUsername 
@@ -239,7 +302,7 @@ app.get('/api/messages/:userId', authenticateToken, (req, res) => {
             if (err) {
                 return res.status(500).json({ error: 'Failed to fetch messages' });
             }
-            
+
             // Format messages for frontend
             const formattedMessages = messages.map(msg => ({
                 id: msg.id,
@@ -248,6 +311,7 @@ app.get('/api/messages/:userId', authenticateToken, (req, res) => {
                 toUserId: msg.to_user,
                 encryptedContent: msg.encrypted_content,
                 timestamp: msg.created_at,
+                isRead: msg.is_read,
                 received: msg.from_user !== currentUserId
             }));
 
@@ -267,11 +331,11 @@ app.post('/api/credits/request', authenticateToken, (req, res) => {
     db.run(
         'INSERT INTO credit_transactions (user_id, amount, transaction_ref, status) VALUES (?, ?, ?, ?)',
         [req.user.id, amount, transactionRef, 'pending'],
-        function(err) {
+        function (err) {
             if (err) {
                 return res.status(500).json({ error: 'Failed to create request' });
             }
-            res.json({ 
+            res.json({
                 message: 'Credit request submitted for admin approval',
                 transactionId: this.lastID
             });
@@ -350,7 +414,7 @@ app.post('/api/admin/transactions/:id/reject', authenticateToken, requireAdmin, 
     db.run(
         'UPDATE credit_transactions SET status = ? WHERE id = ? AND status = ?',
         ['rejected', transactionId, 'pending'],
-        function(err) {
+        function (err) {
             if (err) {
                 return res.status(500).json({ error: 'Failed to reject transaction' });
             }
@@ -380,7 +444,7 @@ const deductCredit = (userId, callback) => {
     db.run(
         'UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0',
         [userId],
-        function(err) {
+        function (err) {
             if (err) {
                 callback(err, null);
             } else if (this.changes === 0) {
@@ -404,9 +468,9 @@ io.on('connection', (socket) => {
             socket.userId = verified.id;
             socket.username = verified.username;
             connectedUsers.set(verified.id, socket.id);
-            
+
             socket.emit('authenticated', { userId: verified.id, username: verified.username });
-            
+
             // Broadcast online users
             io.emit('users-online', Array.from(connectedUsers.keys()));
         } catch (err) {
@@ -431,7 +495,7 @@ io.on('connection', (socket) => {
             db.run(
                 'INSERT INTO messages (from_user, to_user, encrypted_content) VALUES (?, ?, ?)',
                 [socket.userId, toUserId, encryptedContent],
-                function(err) {
+                function (err) {
                     if (err) {
                         return socket.emit('message-error', 'Failed to send message');
                     }

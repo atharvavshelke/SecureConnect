@@ -158,6 +158,28 @@ body {
     align-items: center;
 }
 
+.search-container {
+    padding: 1rem 1.5rem 0.5rem;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.search-container input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0, 255, 245, 0.1);
+}
+
 .online-count {
     background: var(--success);
     color: var(--bg-dark);

@@ -3,6 +3,7 @@
 let socket;
 let currentChatUser = null;
 let allUsers = [];
+let onlineUsers = [];
 let messageHistory = {};
 
 // Check authentication
@@ -28,8 +29,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Connect to WebSocket
     connectWebSocket();
 
-    // Load users
-    await loadUsers();
+    // Load chats
+    await loadChats();
+
+    // Setup search
+    setupSearch();
 
     // Setup message form
     setupMessageForm();
@@ -91,12 +95,18 @@ function connectWebSocket() {
         // Display if chatting with this user
         if (currentChatUser && currentChatUser.id === data.fromUserId) {
             displayMessage(data.fromUsername, decryptedMessage, false);
+            // Mark as read immediately if chat is open? 
+            // For now, reload chats to update order/unread count if not current
         }
+
+        // Refresh chat list to show new message/counts
+        loadChats();
     });
 
     socket.on('message-sent', async (data) => {
-        // Reload credits
+        // Reload credits and chat list (to move chat to top)
         await loadUserData();
+        loadChats();
     });
 
     socket.on('message-error', (error) => {
@@ -105,6 +115,7 @@ function connectWebSocket() {
     });
 
     socket.on('users-online', (userIds) => {
+        onlineUsers = userIds;
         updateOnlineStatus(userIds);
     });
 
@@ -118,9 +129,9 @@ function connectWebSocket() {
     });
 }
 
-async function loadUsers() {
+async function loadChats() {
     try {
-        const response = await fetch('/api/users', {
+        const response = await fetch('/api/chats', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -131,15 +142,51 @@ async function loadUsers() {
             displayUsers();
         }
     } catch (error) {
-        console.error('Failed to load users:', error);
+        console.error('Failed to load chats:', error);
     }
+}
+
+async function searchUsers(query) {
+    try {
+        const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const results = await response.json();
+            displaySearchResults(results, query);
+        }
+    } catch (error) {
+        console.error('Failed to search users:', error);
+    }
+}
+
+function setupSearch() {
+    const searchInput = document.getElementById('userSearch');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        const query = e.target.value.trim();
+
+        if (query.length === 0) {
+            loadChats();
+            return;
+        }
+
+        debounceTimer = setTimeout(() => {
+            searchUsers(query);
+        }, 300);
+    });
 }
 
 function displayUsers() {
     const usersList = document.getElementById('usersList');
 
     if (allUsers.length === 0) {
-        usersList.innerHTML = '<div class="loading">No other users yet</div>';
+        usersList.innerHTML = '<div class="loading">No chats yet. Search to find users.</div>';
         return;
     }
 
@@ -148,6 +195,9 @@ function displayUsers() {
     allUsers.forEach(user => {
         const userItem = document.createElement('div');
         userItem.className = 'user-item';
+        if (currentChatUser && currentChatUser.id === user.id) {
+            userItem.classList.add('active');
+        }
         userItem.onclick = () => openChat(user);
 
         const avatar = document.createElement('div');
@@ -163,13 +213,56 @@ function displayUsers() {
 
         const status = document.createElement('div');
         status.className = 'user-status';
-        status.innerHTML = `
-            <span class="status-dot" data-user-id="${user.id}"></span>
-            <span>Offline</span>
-        `;
+
+        let statusHtml = '';
+        if (user.unread_count > 0) {
+            statusHtml = `<span style="color: var(--primary); font-weight: bold;">${user.unread_count} new messages</span>`;
+        } else {
+            statusHtml = `
+                <span class="status-dot" data-user-id="${user.id}"></span>
+                <span>Offline</span>
+            `;
+        }
+        status.innerHTML = statusHtml;
 
         details.appendChild(username);
         details.appendChild(status);
+        userItem.appendChild(avatar);
+        userItem.appendChild(details);
+        usersList.appendChild(userItem);
+    });
+
+    // Refresh online status
+    updateOnlineStatus(onlineUsers);
+}
+
+function displaySearchResults(results, query) {
+    const usersList = document.getElementById('usersList');
+
+    if (results.length === 0) {
+        usersList.innerHTML = `<div class="loading">No users found for "${query}"</div>`;
+        return;
+    }
+
+    usersList.innerHTML = '';
+
+    results.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.onclick = () => openChat(user);
+
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar';
+        avatar.textContent = user.username.charAt(0).toUpperCase();
+
+        const details = document.createElement('div');
+        details.className = 'user-details';
+
+        const username = document.createElement('div');
+        username.className = 'user-username';
+        username.textContent = user.username;
+
+        details.appendChild(username);
         userItem.appendChild(avatar);
         userItem.appendChild(details);
         usersList.appendChild(userItem);
