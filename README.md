@@ -1,2 +1,0 @@
-# SecureConnect
-SecureConnect.space
