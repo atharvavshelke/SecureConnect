@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureConnect - Chat</title>
+    <link rel="stylesheet" href="/css/chat.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="noise-overlay"></div>
+    
+    <div class="chat-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-small">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span>SC</span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name" id="currentUsername">User</div>
+                    <div class="credits-display">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                        <span id="creditsCount">0</span> credits
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-actions">
+                <button class="action-btn" onclick="showCreditModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v8M8 12h8"/>
+                    </svg>
+                    Buy Credits
+                </button>
+                <button class="action-btn" onclick="logout()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Logout
+                </button>
+            </div>
+
+            <div class="users-section">
+                <div class="section-title">
+                    <span>Available Users</span>
+                    <span class="online-count" id="onlineCount">0</span>
+                </div>
+                <div class="users-list" id="usersList">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-main">
+            <div class="chat-welcome" id="chatWelcome">
+                <div class="welcome-content">
+                    <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <h2>Select a user to start chatting</h2>
+                    <p>All messages are end-to-end encrypted</p>
+                    <div class="encryption-badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        RSA-2048 + AES-256-GCM
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-window hidden" id="chatWindow">
+                <div class="chat-header">
+                    <div class="chat-user-info">
+                        <div class="user-avatar" id="chatAvatar"></div>
+                        <div>
+                            <div class="chat-username" id="chatUsername">User</div>
+                            <div class="encryption-status">
+                                <span class="status-dot active"></span>
+                                <span>Encrypted</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="close-chat" onclick="closeChat()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="messages-container" id="messagesContainer">
+                    <!-- Messages will be added here -->
+                </div>
+
+                <div class="message-input-container">
+                    <div class="cost-indicator">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                        <span>1 credit per message</span>
+                    </div>
+                    <form class="message-form" id="messageForm">
+                        <input 
+                            type="text" 
+                            id="messageInput" 
+                            placeholder="Type an encrypted message..." 
+                            autocomplete="off"
+                            required
+                        >
+                        <button type="submit" class="send-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Credit Purchase Modal -->
+    <div class="modal hidden" id="creditModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Purchase Credits</h2>
+                <button class="modal-close" onclick="closeCreditModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="credit-packages">
+                    <div class="package-card" onclick="selectPackage(50)">
+                        <div class="package-amount">50 Credits</div>
+                        <div class="package-price">$5.00</div>
+                        <div class="package-detail">$0.10 per message</div>
+                    </div>
+                    <div class="package-card featured" onclick="selectPackage(100)">
+                        <div class="package-badge">Popular</div>
+                        <div class="package-amount">100 Credits</div>
+                        <div class="package-price">$8.00</div>
+                        <div class="package-detail">$0.08 per message</div>
+                    </div>
+                    <div class="package-card" onclick="selectPackage(500)">
+                        <div class="package-amount">500 Credits</div>
+                        <div class="package-price">$30.00</div>
+                        <div class="package-detail">$0.06 per message</div>
+                    </div>
+                </div>
+
+                <form id="creditRequestForm" class="credit-form">
+                    <div class="form-group">
+                        <label>Selected Amount</label>
+                        <input type="number" id="creditAmount" value="100" readonly>
+                    </div>
+
+                    <div class="payment-instructions">
+                        <h3>Payment Instructions</h3>
+                        <ol>
+                            <li>Transfer the amount to our account</li>
+                            <li>Enter your transaction reference below</li>
+                            <li>Submit for admin verification</li>
+                            <li>Credits will be added after approval</li>
+                        </ol>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Transaction Reference</label>
+                        <input type="text" id="transactionRef" placeholder="e.g., TXN12345ABC" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <span>Submit for Approval</span>
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="transaction-history">
+                    <h3>Recent Transactions</h3>
+                    <div id="transactionsList" class="transactions-list">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/js/crypto.js"></script>
+    <script src="/js/chat.js"></script>
+</body>
+</html>

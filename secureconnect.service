@@ -1,0 +1,43 @@
+# SecureConnect Systemd Service File
+# Alternative to PM2 for running SecureConnect as a system service
+#
+# Installation Instructions:
+# 1. Copy this file to /etc/systemd/system/secureconnect.service
+# 2. Update the paths and user in the file if needed
+# 3. Run: sudo systemctl daemon-reload
+# 4. Run: sudo systemctl enable secureconnect
+# 5. Run: sudo systemctl start secureconnect
+#
+# Usage:
+#   sudo systemctl start secureconnect    - Start service
+#   sudo systemctl stop secureconnect     - Stop service
+#   sudo systemctl restart secureconnect  - Restart service
+#   sudo systemctl status secureconnect   - Check status
+#   sudo journalctl -u secureconnect -f   - View logs
+
+[Unit]
+Description=SecureConnect E2E Encrypted Chat
+Documentation=https://github.com/yourusername/secureconnect
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/secureconnect
+ExecStart=/usr/bin/node /home/ubuntu/secureconnect/server.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=secureconnect
+
+# Environment variables (optional)
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
