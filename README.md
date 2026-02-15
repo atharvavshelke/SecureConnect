@@ -1,5 +1,3 @@
-Ronit --> here write how to do anyting and what u have done so far or just ignore this if u r lion /n
-Atharva --> 
 # SecureConnect
 
 **End-to-End Encrypted Chat Application with Credit-Based Messaging System**
