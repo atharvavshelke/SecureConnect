@@ -82,8 +82,8 @@ class SecureEncryption {
         );
     }
 
-    // Encrypt message with recipient's public key
-    async encryptMessage(message, recipientPublicKeyString) {
+    // Encrypt message with recipient's public key (and sender's public key for history)
+    async encryptMessage(message, recipientPublicKeyString, senderPublicKeyString) {
         try {
             // Generate AES key for this message
             const aesKey = await window.crypto.subtle.generateKey(
@@ -116,7 +116,7 @@ class SecureEncryption {
             const recipientPublicKey = await this.importPublicKey(recipientPublicKeyString);
 
             // Encrypt AES key with recipient's RSA public key
-            const encryptedAesKey = await window.crypto.subtle.encrypt(
+            const encryptedKey = await window.crypto.subtle.encrypt(
                 {
                     name: "RSA-OAEP"
                 },
@@ -124,9 +124,24 @@ class SecureEncryption {
                 exportedAesKey
             );
 
+            // Encrypt AES key with sender's RSA public key (if provided)
+            let encryptedKeySelf = null;
+            if (senderPublicKeyString) {
+                const senderPublicKey = await this.importPublicKey(senderPublicKeyString);
+                const encryptedKeySelfBuffer = await window.crypto.subtle.encrypt(
+                    {
+                        name: "RSA-OAEP"
+                    },
+                    senderPublicKey,
+                    exportedAesKey
+                );
+                encryptedKeySelf = this.arrayBufferToBase64(encryptedKeySelfBuffer);
+            }
+
             // Combine everything into a single package
             const encryptedPackage = {
-                encryptedKey: this.arrayBufferToBase64(encryptedAesKey),
+                encryptedKey: this.arrayBufferToBase64(encryptedKey),
+                encryptedKeySelf: encryptedKeySelf,
                 iv: this.arrayBufferToBase64(iv),
                 ciphertext: this.arrayBufferToBase64(encryptedMessage)
             };
@@ -140,18 +155,39 @@ class SecureEncryption {
 
     // Decrypt message with own private key
     async decryptMessage(encryptedPackageString) {
+        if (!this.privateKey) {
+            return '[Decryption failed - No private key found. Did you log in on a new device?]';
+        }
+
         try {
             const encryptedPackage = JSON.parse(encryptedPackageString);
+            let aesKeyBuffer;
 
-            // Decrypt AES key with RSA private key
-            const encryptedAesKey = this.base64ToArrayBuffer(encryptedPackage.encryptedKey);
-            const aesKeyBuffer = await window.crypto.subtle.decrypt(
-                {
-                    name: "RSA-OAEP"
-                },
-                this.privateKey,
-                encryptedAesKey
-            );
+            // Try to decrypt using the primary key (recipient's)
+            try {
+                const encryptedAesKey = this.base64ToArrayBuffer(encryptedPackage.encryptedKey);
+                aesKeyBuffer = await window.crypto.subtle.decrypt(
+                    { name: "RSA-OAEP" },
+                    this.privateKey,
+                    encryptedAesKey
+                );
+            } catch (recipientError) {
+                // If that fails, and we have a self-encrypted key, try that
+                if (encryptedPackage.encryptedKeySelf) {
+                    try {
+                        const encryptedAesKeySelf = this.base64ToArrayBuffer(encryptedPackage.encryptedKeySelf);
+                        aesKeyBuffer = await window.crypto.subtle.decrypt(
+                            { name: "RSA-OAEP" },
+                            this.privateKey,
+                            encryptedAesKeySelf
+                        );
+                    } catch (selfError) {
+                        throw new Error('Failed to decrypt both recipient and self keys');
+                    }
+                } else {
+                    throw recipientError;
+                }
+            }
 
             // Import AES key
             const aesKey = await window.crypto.subtle.importKey(
@@ -168,7 +204,7 @@ class SecureEncryption {
             // Decrypt message
             const iv = this.base64ToArrayBuffer(encryptedPackage.iv);
             const ciphertext = this.base64ToArrayBuffer(encryptedPackage.ciphertext);
-            
+
             const decryptedMessage = await window.crypto.subtle.decrypt(
                 {
                     name: "AES-GCM",
@@ -186,26 +222,33 @@ class SecureEncryption {
     }
 
     // Store keys in localStorage (in production, use more secure storage)
-    storeKeys() {
-        if (this.privateKey) {
+    storeKeys(username) {
+        if (this.privateKey && username) {
             this.exportPrivateKey().then(privateKeyString => {
-                localStorage.setItem('secureconnect_private_key', privateKeyString);
+                localStorage.setItem(`secureconnect_private_key_${username}`, privateKeyString);
+            });
+            this.exportPublicKey().then(publicKeyString => {
+                localStorage.setItem(`secureconnect_public_key_${username}`, publicKeyString);
             });
         }
     }
 
     // Load keys from localStorage
-    async loadKeys() {
-        const privateKeyString = localStorage.getItem('secureconnect_private_key');
+    async loadKeys(username) {
+        if (!username) return;
+
+        const privateKeyString = localStorage.getItem(`secureconnect_private_key_${username}`);
         if (privateKeyString) {
             await this.importPrivateKey(privateKeyString);
-            
-            // Derive public key from private key by re-generating
-            // In production, store both separately
-            const publicKeyString = localStorage.getItem('secureconnect_public_key');
+
+            const publicKeyString = localStorage.getItem(`secureconnect_public_key_${username}`);
             if (publicKeyString) {
                 this.publicKey = await this.importPublicKey(publicKeyString);
             }
+        } else {
+            console.log(`No keys found for user: ${username}`);
+            this.privateKey = null;
+            this.publicKey = null;
         }
     }
 

@@ -222,6 +222,40 @@ app.get('/api/users', authenticateToken, (req, res) => {
     );
 });
 
+// Get chat history with a specific user
+app.get('/api/messages/:userId', authenticateToken, (req, res) => {
+    const otherUserId = req.params.userId;
+    const currentUserId = req.user.id;
+
+    db.all(
+        `SELECT m.*, u.username as fromUsername 
+         FROM messages m 
+         JOIN users u ON m.from_user = u.id
+         WHERE (from_user = ? AND to_user = ?) 
+            OR (from_user = ? AND to_user = ?)
+         ORDER BY created_at ASC`,
+        [currentUserId, otherUserId, otherUserId, currentUserId],
+        (err, messages) => {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to fetch messages' });
+            }
+            
+            // Format messages for frontend
+            const formattedMessages = messages.map(msg => ({
+                id: msg.id,
+                fromUserId: msg.from_user,
+                fromUsername: msg.fromUsername,
+                toUserId: msg.to_user,
+                encryptedContent: msg.encrypted_content,
+                timestamp: msg.created_at,
+                received: msg.from_user !== currentUserId
+            }));
+
+            res.json(formattedMessages);
+        }
+    );
+});
+
 // Request credits
 app.post('/api/credits/request', authenticateToken, (req, res) => {
     const { amount, transactionRef } = req.body;

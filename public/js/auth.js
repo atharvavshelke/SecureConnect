@@ -14,7 +14,7 @@ function showError(elementId, message) {
     const errorElement = document.getElementById(elementId);
     errorElement.textContent = message;
     errorElement.classList.add('show');
-    
+
     setTimeout(() => {
         errorElement.classList.remove('show');
     }, 5000);
@@ -23,10 +23,10 @@ function showError(elementId, message) {
 // Login form handler
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
-    
+
     try {
         const response = await fetch('/api/login', {
             method: 'POST',
@@ -35,18 +35,18 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             },
             body: JSON.stringify({ username, password })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
-            // Load existing encryption keys
-            await secureEncryption.loadKeys();
-            
+            // Load existing encryption keys for this user
+            await secureEncryption.loadKeys(data.username);
+
             // Store token
             localStorage.setItem('token', data.token);
             localStorage.setItem('userId', data.userId);
             localStorage.setItem('username', data.username);
-            
+
             // Redirect to chat
             window.location.href = '/chat';
         } else {
@@ -61,55 +61,54 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 // Register form handler
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const username = document.getElementById('registerUsername').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
-    
+
     if (password.length < 6) {
         showError('registerError', 'Password must be at least 6 characters long');
         return;
     }
-    
+
     try {
         // Update status
         const statusText = document.querySelector('#registerCard .status-text');
         statusText.textContent = 'Generating encryption keys...';
-        
+
         // Generate encryption keys
         const publicKey = await secureEncryption.generateKeyPair();
-        
-        // Store private key locally
-        secureEncryption.storeKeys();
-        localStorage.setItem('secureconnect_public_key', publicKey);
-        
+
+        // Store private key locally for this user
+        secureEncryption.storeKeys(username);
+
         statusText.textContent = 'Creating account...';
-        
+
         // Register user
         const response = await fetch('/api/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                username, 
-                email, 
+            body: JSON.stringify({
+                username,
+                email,
                 password,
-                publicKey 
+                publicKey
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             // Store token
             localStorage.setItem('token', data.token);
             localStorage.setItem('userId', data.userId);
             localStorage.setItem('username', data.username);
-            
+
             // Show success message
             statusText.textContent = 'Account created! Redirecting...';
-            
+
             // Redirect to chat
             setTimeout(() => {
                 window.location.href = '/chat';
@@ -128,20 +127,24 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
 
 // Check if already logged in
 const token = localStorage.getItem('token');
-if (token && window.location.pathname === '/') {
+const savedUsername = localStorage.getItem('username');
+if (token && window.location.pathname === '/' && savedUsername) {
     // Verify token is still valid
     fetch('/api/user/me', {
         headers: {
             'Authorization': `Bearer ${token}`
         }
     })
-    .then(response => {
-        if (response.ok) {
-            window.location.href = '/chat';
-        }
-    })
-    .catch(() => {
-        // Token invalid, stay on login page
-        localStorage.removeItem('token');
-    });
+        .then(response => {
+            if (response.ok) {
+                // Pre-load keys
+                secureEncryption.loadKeys(savedUsername).then(() => {
+                    window.location.href = '/chat';
+                });
+            }
+        })
+        .catch(() => {
+            // Token invalid, stay on login page
+            localStorage.removeItem('token');
+        });
 }
