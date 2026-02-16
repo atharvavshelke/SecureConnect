@@ -158,6 +158,28 @@ body {
     align-items: center;
 }
 
+.search-container {
+    padding: 1rem 1.5rem 0.5rem;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.search-container input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0, 255, 245, 0.1);
+}
+
 .online-count {
     background: var(--success);
     color: var(--bg-dark);
@@ -250,6 +272,7 @@ body {
     flex-direction: column;
     background: var(--bg-dark);
     position: relative;
+    overflow: hidden;
 }
 
 .chat-welcome {
@@ -306,16 +329,20 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .chat-header {
-    padding: 1.5rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border);
     display: flex;
+    gap: 1rem;
     justify-content: space-between;
     align-items: center;
     background: var(--bg-darker);
 }
+
+/* Back button styles removed */
 
 .chat-user-info {
     display: flex;
@@ -387,6 +414,7 @@ body {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -409,6 +437,13 @@ body {
     font-size: 0.85rem;
     color: var(--bg-dark);
     flex-shrink: 0;
+    overflow: hidden;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .message-content {
@@ -423,7 +458,7 @@ body {
 }
 
 .message-bubble {
-    padding: 0.875rem 1.125rem;
+    padding: 0.875rem;
     border-radius: 8px;
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -470,7 +505,7 @@ body {
 
 .message-form input {
     flex: 1;
-    padding: 0.875rem 1.125rem;
+    padding: 0.875rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -526,8 +561,13 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .modal-content {
@@ -546,6 +586,7 @@ body {
         opacity: 0;
         transform: translateY(30px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -839,12 +880,89 @@ body {
     background: var(--primary);
 }
 
-@media (max-width: 968px) {
+@media (max-width: 768px) {
+    .chat-header {
+        justify-content: space-between;
+    }
+
     .chat-container {
         grid-template-columns: 1fr;
+        position: relative;
     }
 
     .sidebar {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        /* Default show on mobile */
+    }
+
+    .chat-main {
+        display: none;
+        /* Default hide on mobile */
+        width: 100%;
+        height: 100vh;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 20;
+    }
+
+    /* When a chat is active on mobile */
+    .chat-container.mobile-chat-active .sidebar {
         display: none;
     }
+
+    .chat-container.mobile-chat-active .chat-main {
+        display: flex;
+    }
+
+    .close-chat {
+        display: flex;
+    }
+}
+
+/* Avatar Upload Styles */
+.user-avatar-container {
+    position: relative;
+    cursor: pointer;
+    width: fit-content;
+}
+
+.user-avatar.large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+}
+
+.avatar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.user-avatar-container:hover .avatar-overlay {
+    opacity: 1;
+}
+
+.avatar-overlay svg {
+    width: 24px;
+    height: 24px;
+    color: var(--text-primary);
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
