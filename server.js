@@ -8,6 +8,38 @@ const path = require('path');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 
+const fs = require('fs');
+const multer = require('multer');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'public', 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|gif|webp/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Only images are allowed'));
+    }
+});
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
@@ -30,6 +62,7 @@ db.serialize(() => {
         credits INTEGER DEFAULT 0,
         public_key TEXT,
         is_admin INTEGER DEFAULT 0,
+        avatar TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -50,6 +83,11 @@ db.serialize(() => {
                 // Ignore error if column already exists
             });
         }
+    });
+
+    // Add avatar column if it doesn't exist (for existing databases)
+    db.run("ALTER TABLE users ADD COLUMN avatar TEXT", (err) => {
+        // Ignore error if column already exists
     });
 
     // Credit transactions table
@@ -205,7 +243,7 @@ app.post('/api/login', (req, res) => {
 
 // Get user info
 app.get('/api/user/me', authenticateToken, (req, res) => {
-    db.get('SELECT id, username, email, credits, public_key FROM users WHERE id = ?',
+    db.get('SELECT id, username, email, credits, public_key, avatar FROM users WHERE id = ?',
         [req.user.id],
         (err, user) => {
             if (err || !user) {
@@ -216,10 +254,30 @@ app.get('/api/user/me', authenticateToken, (req, res) => {
     );
 });
 
+// Upload avatar
+app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const avatarPath = '/uploads/' + req.file.filename;
+
+    db.run(
+        'UPDATE users SET avatar = ? WHERE id = ?',
+        [avatarPath, req.user.id],
+        (err) => {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to update avatar' });
+            }
+            res.json({ message: 'Avatar updated', avatar: avatarPath });
+        }
+    );
+});
+
 // Get all users (for chat)
 app.get('/api/users', authenticateToken, (req, res) => {
     db.all(
-        'SELECT id, username, public_key FROM users WHERE id != ?',
+        'SELECT id, username, public_key, avatar FROM users WHERE id != ?',
         [req.user.id],
         (err, users) => {
             if (err) {
@@ -236,7 +294,7 @@ app.get('/api/users/search', authenticateToken, (req, res) => {
     if (!query) return res.json([]);
 
     db.all(
-        `SELECT id, username, public_key FROM users 
+        `SELECT id, username, public_key, avatar FROM users 
          WHERE id != ? AND username LIKE ? 
          LIMIT 20`,
         [req.user.id, `%${query}%`],
@@ -258,6 +316,7 @@ app.get('/api/chats', authenticateToken, (req, res) => {
             u.id, 
             u.username, 
             u.public_key,
+            u.avatar,
             MAX(m.created_at) as last_message_time,
             SUM(CASE WHEN m.to_user = ? AND m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
         FROM users u

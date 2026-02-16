@@ -5,6 +5,7 @@ let currentChatUser = null;
 let allUsers = [];
 let onlineUsers = [];
 let messageHistory = {};
+let currentUserAvatarUrl = null;
 
 // Check authentication
 const token = localStorage.getItem('token');
@@ -37,6 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Setup message form
     setupMessageForm();
+
+    // Setup avatar upload
+    document.getElementById('avatarInput').addEventListener('change', handleAvatarUpload);
 });
 
 async function loadUserData() {
@@ -50,6 +54,7 @@ async function loadUserData() {
         if (response.ok) {
             const userData = await response.json();
             updateCredits(userData.credits);
+            updateAvatar(userData.avatar);
         } else {
             logout();
         }
@@ -60,6 +65,57 @@ async function loadUserData() {
 
 function updateCredits(credits) {
     document.getElementById('creditsCount').textContent = credits;
+}
+
+function updateAvatar(avatarPath) {
+    currentUserAvatarUrl = avatarPath; // Store globally
+    const avatarContainer = document.getElementById('currentUserAvatar');
+    if (avatarPath) {
+        console.log('Setting avatar path:', avatarPath);
+        avatarContainer.innerHTML = `<img src="${avatarPath}" alt="Avatar" onerror="this.onerror=null; this.parentElement.textContent='${currentUsername.charAt(0).toUpperCase()}'; console.error('Failed to load avatar image');">`;
+        // Clear text content not needed as innerHTML overwrites it, but if it fails, onerror restores it? 
+        // actually onerror replaces the img with text? 
+        // simpler: logic above handles it.
+    } else {
+        console.log('No avatar path, showing initials');
+        avatarContainer.innerHTML = '';
+        avatarContainer.textContent = currentUsername.charAt(0).toUpperCase();
+    }
+}
+
+async function handleAvatarUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+        alert('File is too large. Max 2MB.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+        const response = await fetch('/api/user/avatar', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            updateAvatar(data.avatar);
+            // Reload user data to sync everything
+            loadUserData();
+        } else {
+            alert('Failed to upload avatar');
+        }
+    } catch (error) {
+        console.error('Error uploading avatar:', error);
+        alert('Error uploading avatar');
+    }
 }
 
 function connectWebSocket() {
@@ -202,7 +258,13 @@ function displayUsers() {
 
         const avatar = document.createElement('div');
         avatar.className = 'user-avatar';
-        avatar.textContent = user.username.charAt(0).toUpperCase();
+        if (user.avatar) {
+            const img = document.createElement('img');
+            img.src = user.avatar;
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = user.username.charAt(0).toUpperCase();
+        }
 
         const details = document.createElement('div');
         details.className = 'user-details';
@@ -253,7 +315,13 @@ function displaySearchResults(results, query) {
 
         const avatar = document.createElement('div');
         avatar.className = 'user-avatar';
-        avatar.textContent = user.username.charAt(0).toUpperCase();
+        if (user.avatar) {
+            const img = document.createElement('img');
+            img.src = user.avatar;
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent = user.username.charAt(0).toUpperCase();
+        }
 
         const details = document.createElement('div');
         details.className = 'user-details';
@@ -283,6 +351,27 @@ function updateOnlineStatus(onlineUserIds) {
             dot.nextElementSibling.textContent = 'Offline';
         }
     });
+
+    // Update header status if current chat user is affected
+    if (currentChatUser) {
+        updateHeaderStatus(currentChatUser);
+    }
+}
+
+function updateHeaderStatus(user) {
+    const statusDot = document.querySelector('.chat-header .status-dot');
+    const statusText = document.querySelector('.chat-header .encryption-status span:last-child');
+    const statusContainer = document.querySelector('.chat-header .encryption-status');
+
+    if (onlineUsers.includes(user.id)) {
+        statusDot.classList.add('active');
+        statusText.textContent = 'Online';
+        statusContainer.style.color = 'var(--success)';
+    } else {
+        statusDot.classList.remove('active');
+        statusText.textContent = 'Offline';
+        statusContainer.style.color = 'var(--text-secondary)';
+    }
 }
 
 async function openChat(user) {
@@ -301,7 +390,17 @@ async function openChat(user) {
     // Update chat header
     document.getElementById('chatUsername').textContent = user.username;
     const chatAvatar = document.getElementById('chatAvatar');
-    chatAvatar.textContent = user.username.charAt(0).toUpperCase();
+    if (user.avatar) {
+        chatAvatar.innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
+    } else {
+        chatAvatar.innerHTML = '';
+        chatAvatar.innerHTML = '';
+        chatAvatar.textContent = user.username.charAt(0).toUpperCase();
+    }
+
+    // Update status in header
+    updateHeaderStatus(user);
+
 
     // Clear existing messages while loading
     document.getElementById('messagesContainer').innerHTML = '<div class="loading">Loading history...</div>';
@@ -374,7 +473,25 @@ function displayMessage(username, message, isSent) {
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
-    avatar.textContent = username.charAt(0).toUpperCase();
+
+    // Find the avatar URL for the user (sender)
+    let avatarUrl = null;
+    if (isSent) {
+        // Current user
+        avatarUrl = currentUserAvatarUrl;
+    } else {
+        // Other user - from allUsers or currentChatUser
+        const sender = allUsers.find(u => u.username === username) || currentChatUser;
+        if (sender && sender.avatar) avatarUrl = sender.avatar;
+    }
+
+    if (avatarUrl) {
+        const img = document.createElement('img');
+        img.src = avatarUrl;
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = username.charAt(0).toUpperCase();
+    }
 
     const content = document.createElement('div');
     content.className = 'message-content';

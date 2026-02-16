@@ -434,6 +434,13 @@ body {
     font-size: 0.85rem;
     color: var(--bg-dark);
     flex-shrink: 0;
+    overflow: hidden;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .message-content {
@@ -878,4 +885,49 @@ body {
     .sidebar {
         display: none;
     }
+}
+
+/* Avatar Upload Styles */
+.user-avatar-container {
+    position: relative;
+    cursor: pointer;
+    width: fit-content;
+}
+
+.user-avatar.large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+}
+
+.avatar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.user-avatar-container:hover .avatar-overlay {
+    opacity: 1;
+}
+
+.avatar-overlay svg {
+    width: 24px;
+    height: 24px;
+    color: var(--text-primary);
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
