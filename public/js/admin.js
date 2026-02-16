@@ -5,21 +5,21 @@ let adminToken = null;
 document.addEventListener('DOMContentLoaded', () => {
     // Check if admin is already logged in
     adminToken = localStorage.getItem('admin_token');
-    
+
     if (adminToken) {
         verifyAdminToken();
     }
-    
+
     // Setup login form
     document.getElementById('adminLoginForm').addEventListener('submit', handleAdminLogin);
 });
 
 async function handleAdminLogin(e) {
     e.preventDefault();
-    
+
     const username = document.getElementById('adminUsernameInput').value.trim();
     const password = document.getElementById('adminPasswordInput').value;
-    
+
     try {
         const response = await fetch('/api/login', {
             method: 'POST',
@@ -28,19 +28,19 @@ async function handleAdminLogin(e) {
             },
             body: JSON.stringify({ username, password })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             if (!data.isAdmin) {
                 showLoginError('Access denied. Admin credentials required.');
                 return;
             }
-            
+
             adminToken = data.token;
             localStorage.setItem('admin_token', adminToken);
             document.getElementById('adminUsername').textContent = data.username;
-            
+
             showAdminPanel();
             loadPendingTransactions();
         } else {
@@ -56,7 +56,7 @@ function showLoginError(message) {
     const errorElement = document.getElementById('adminLoginError');
     errorElement.textContent = message;
     errorElement.classList.add('show');
-    
+
     setTimeout(() => {
         errorElement.classList.remove('show');
     }, 5000);
@@ -69,7 +69,7 @@ async function verifyAdminToken() {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
-        
+
         if (response.ok) {
             const userData = await response.json();
             document.getElementById('adminUsername').textContent = userData.username;
@@ -95,12 +95,12 @@ function showTab(tabName) {
     // Hide all tabs
     document.getElementById('transactionsTab').classList.add('hidden');
     document.getElementById('usersTab').classList.add('hidden');
-    
+
     // Remove active class from all nav items
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
-    
+
     // Show selected tab
     if (tabName === 'transactions') {
         document.getElementById('transactionsTab').classList.remove('hidden');
@@ -116,18 +116,18 @@ function showTab(tabName) {
 async function loadPendingTransactions() {
     const grid = document.getElementById('transactionsGrid');
     grid.innerHTML = '<div class="loading">Loading transactions...</div>';
-    
+
     try {
         const response = await fetch('/api/admin/transactions/pending', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
-        
+
         if (response.ok) {
             const transactions = await response.json();
             displayTransactions(transactions);
-            
+
             // Update badge
             document.getElementById('pendingBadge').textContent = transactions.length;
         } else {
@@ -141,18 +141,18 @@ async function loadPendingTransactions() {
 
 function displayTransactions(transactions) {
     const grid = document.getElementById('transactionsGrid');
-    
+
     if (transactions.length === 0) {
         grid.innerHTML = '<div class="loading">No pending transactions</div>';
         return;
     }
-    
+
     grid.innerHTML = '';
-    
+
     transactions.forEach(transaction => {
         const card = document.createElement('div');
         card.className = 'transaction-card';
-        
+
         card.innerHTML = `
             <div class="transaction-header">
                 <div class="transaction-user">
@@ -186,7 +186,7 @@ function displayTransactions(transactions) {
                 </button>
             </div>
         `;
-        
+
         grid.appendChild(card);
     });
 }
@@ -195,7 +195,7 @@ async function approveTransaction(transactionId) {
     if (!confirm('Approve this transaction and add credits to user account?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/admin/transactions/${transactionId}/approve`, {
             method: 'POST',
@@ -203,7 +203,7 @@ async function approveTransaction(transactionId) {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
-        
+
         if (response.ok) {
             alert('Transaction approved successfully!');
             loadPendingTransactions();
@@ -221,7 +221,7 @@ async function rejectTransaction(transactionId) {
     if (!confirm('Reject this transaction? This action cannot be undone.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/admin/transactions/${transactionId}/reject`, {
             method: 'POST',
@@ -229,7 +229,7 @@ async function rejectTransaction(transactionId) {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
-        
+
         if (response.ok) {
             alert('Transaction rejected.');
             loadPendingTransactions();
@@ -246,14 +246,14 @@ async function rejectTransaction(transactionId) {
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
     tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading users...</td></tr>';
-    
+
     try {
         const response = await fetch('/api/admin/users', {
             headers: {
                 'Authorization': `Bearer ${adminToken}`
             }
         });
-        
+
         if (response.ok) {
             const users = await response.json();
             displayUsers(users);
@@ -268,17 +268,17 @@ async function loadUsers() {
 
 function displayUsers(users) {
     const tbody = document.getElementById('usersTableBody');
-    
+
     if (users.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="loading">No users registered yet</td></tr>';
         return;
     }
-    
+
     tbody.innerHTML = '';
-    
+
     users.forEach(user => {
         const row = document.createElement('tr');
-        
+
         row.innerHTML = `
             <td>${user.id}</td>
             <td>${user.username}</td>
@@ -286,7 +286,7 @@ function displayUsers(users) {
             <td><span class="credit-badge">${user.credits}</span></td>
             <td><span class="date-text">${new Date(user.created_at).toLocaleDateString()}</span></td>
         `;
-        
+
         tbody.appendChild(row);
     });
 }
@@ -295,3 +295,17 @@ function logout() {
     localStorage.removeItem('admin_token');
     window.location.reload();
 }
+
+function toggleSidebar() {
+    document.querySelector('.admin-sidebar').classList.toggle('open');
+    document.querySelector('.sidebar-overlay').classList.toggle('open');
+}
+
+// Close sidebar when clicking a nav item on mobile
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        if (window.innerWidth <= 968) {
+            toggleSidebar();
+        }
+    });
+});

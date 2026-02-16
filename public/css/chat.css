@@ -333,13 +333,16 @@ body {
 }
 
 .chat-header {
-    padding: 1.5rem;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border);
     display: flex;
+    gap: 1rem;
     justify-content: space-between;
     align-items: center;
     background: var(--bg-darker);
 }
+
+/* Back button styles removed */
 
 .chat-user-info {
     display: flex;
@@ -455,7 +458,7 @@ body {
 }
 
 .message-bubble {
-    padding: 0.875rem 1.125rem;
+    padding: 0.875rem;
     border-radius: 8px;
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -502,7 +505,7 @@ body {
 
 .message-form input {
     flex: 1;
-    padding: 0.875rem 1.125rem;
+    padding: 0.875rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -877,13 +880,45 @@ body {
     background: var(--primary);
 }
 
-@media (max-width: 968px) {
+@media (max-width: 768px) {
+    .chat-header {
+        justify-content: space-between;
+    }
+
     .chat-container {
         grid-template-columns: 1fr;
+        position: relative;
     }
 
     .sidebar {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        /* Default show on mobile */
+    }
+
+    .chat-main {
         display: none;
+        /* Default hide on mobile */
+        width: 100%;
+        height: 100vh;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 20;
+    }
+
+    /* When a chat is active on mobile */
+    .chat-container.mobile-chat-active .sidebar {
+        display: none;
+    }
+
+    .chat-container.mobile-chat-active .chat-main {
+        display: flex;
+    }
+
+    .close-chat {
+        display: flex;
     }
 }
 

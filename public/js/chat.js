@@ -377,6 +377,9 @@ function updateHeaderStatus(user) {
 async function openChat(user) {
     currentChatUser = user;
 
+    // Mobile: Show chat view
+    document.querySelector('.chat-container').classList.add('mobile-chat-active');
+
     // Update active state
     document.querySelectorAll('.user-item').forEach(item => {
         item.classList.remove('active');
@@ -570,12 +573,23 @@ function setupMessageForm() {
 
 function closeChat() {
     currentChatUser = null;
+
+    // Check if on mobile and handle accordingly
+    if (document.querySelector('.chat-container').classList.contains('mobile-chat-active')) {
+        document.querySelector('.chat-container').classList.remove('mobile-chat-active');
+    }
+
     document.getElementById('chatWindow').classList.add('hidden');
     document.getElementById('chatWelcome').classList.remove('hidden');
 
     document.querySelectorAll('.user-item').forEach(item => {
         item.classList.remove('active');
     });
+}
+
+function closeMobileChat() {
+    document.querySelector('.chat-container').classList.remove('mobile-chat-active');
+    closeChat();
 }
 
 // Credit modal functions
