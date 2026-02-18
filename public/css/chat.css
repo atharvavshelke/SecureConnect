@@ -27,6 +27,8 @@ body {
     color: var(--text-primary);
     overflow: hidden;
     height: 100vh;
+    /* Use dvh for mobile browsers with dynamic URL bars */
+    height: 100dvh;
 }
 
 .noise-overlay {
@@ -481,6 +483,7 @@ body {
     border-top: 1px solid var(--border);
     background: var(--bg-darker);
     padding: 1rem 1.5rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
 
 .cost-indicator {
@@ -511,7 +514,8 @@ body {
     border-radius: 4px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
-    font-size: 0.95rem;
+    font-size: 16px;
+    /* Prevents auto-zoom on iOS */
     transition: all 0.3s ease;
 }
 
@@ -908,6 +912,12 @@ body {
         z-index: 20;
     }
 
+    /* Make back button bigger for touch */
+    .close-chat {
+        width: 44px;
+        height: 44px;
+    }
+
     /* When a chat is active on mobile */
     .chat-container.mobile-chat-active .sidebar {
         display: none;
@@ -915,6 +925,36 @@ body {
 
     .chat-container.mobile-chat-active .chat-main {
         display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        /* Use dynamic viewport height */
+        position: fixed;
+        /* Fix to viewport to prevent scrolling issues */
+        top: 0;
+        left: 0;
+        width: 100%;
+        background: var(--bg-dark);
+        z-index: 100;
+    }
+
+    /* Ensure messages area takes available space but leaves room for input */
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding-bottom: 80px;
+        /* Space for input */
+    }
+
+    /* Fix input to bottom on mobile */
+    .message-input-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: var(--bg-darker);
+        border-top: 1px solid var(--border);
+        z-index: 101;
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
     }
 
     .close-chat {

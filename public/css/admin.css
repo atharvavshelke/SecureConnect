@@ -252,7 +252,8 @@ body {
     border-radius: 4px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
-    font-size: 0.95rem;
+    font-size: 16px;
+    /* Prevents auto-zoom on iOS */
     transition: all 0.3s ease;
 }
 
@@ -646,6 +647,7 @@ body {
         position: sticky;
         top: 0;
         z-index: 100;
+        padding-top: env(safe-area-inset-top);
     }
 
     .transactions-grid {
@@ -664,6 +666,8 @@ body {
         display: flex;
         align-items: center;
         justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
     }
 
     .menu-btn svg {
