@@ -271,6 +271,93 @@ class SecureEncryption {
         }
         return bytes.buffer;
     }
+
+    // Derive a key from password using PBKDF2
+    async deriveKeyFromPassword(password, salt) {
+        const formatedPassword = new TextEncoder().encode(password);
+        const importedPassword = await window.crypto.subtle.importKey(
+            'raw',
+            formatedPassword,
+            { name: 'PBKDF2' },
+            false,
+            ['deriveKey']
+        );
+
+        return await window.crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: salt,
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            importedPassword,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    // Encrypt private key with password
+    async encryptPrivateKeyWithPassword(password) {
+        if (!this.privateKey) {
+            throw new Error('No private key to encrypt');
+        }
+
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const key = await this.deriveKeyFromPassword(password, salt);
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+        const exportedPrivateKey = await window.crypto.subtle.exportKey(
+            'pkcs8',
+            this.privateKey
+        );
+
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            exportedPrivateKey
+        );
+
+        return JSON.stringify({
+            salt: this.arrayBufferToBase64(salt),
+            iv: this.arrayBufferToBase64(iv),
+            ciphertext: this.arrayBufferToBase64(ciphertext)
+        });
+    }
+
+    // Decrypt private key with password
+    async decryptPrivateKeyWithPassword(password, encryptedBundleString) {
+        try {
+            const bundle = JSON.parse(encryptedBundleString);
+            const salt = this.base64ToArrayBuffer(bundle.salt);
+            const iv = this.base64ToArrayBuffer(bundle.iv);
+            const ciphertext = this.base64ToArrayBuffer(bundle.ciphertext);
+
+            const key = await this.deriveKeyFromPassword(password, salt);
+
+            const decryptedKeyBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                ciphertext
+            );
+
+            this.privateKey = await window.crypto.subtle.importKey(
+                'pkcs8',
+                decryptedKeyBuffer,
+                {
+                    name: "RSA-OAEP",
+                    hash: "SHA-256"
+                },
+                true,
+                ['decrypt']
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Failed to decrypt private key:', error);
+            throw new Error('Incorrect password or corrupted key');
+        }
+    }
 }
 
 // Global instance

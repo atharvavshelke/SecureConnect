@@ -61,10 +61,30 @@ db.serialize(() => {
         email TEXT UNIQUE NOT NULL,
         credits INTEGER DEFAULT 0,
         public_key TEXT,
+        encrypted_private_key TEXT,
+        is_logged_in INTEGER DEFAULT 0,
         is_admin INTEGER DEFAULT 0,
         avatar TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+    )`, (err) => {
+        if (!err) {
+            // Add columns if they don't exist (for existing databases)
+            const columnsToAdd = [
+                { name: "avatar", type: "TEXT" },
+                { name: "encrypted_private_key", type: "TEXT" },
+                { name: "is_logged_in", type: "INTEGER DEFAULT 0" }
+            ];
+
+            columnsToAdd.forEach(col => {
+                db.run(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`, (err) => {
+                    // Ignore error if column already exists
+                });
+            });
+
+            // Reset is_logged_in on server start (in case of crash)
+            db.run("UPDATE users SET is_logged_in = 0");
+        }
+    });
 
     // Messages table (stores encrypted messages)
     db.run(`CREATE TABLE IF NOT EXISTS messages (
@@ -83,11 +103,6 @@ db.serialize(() => {
                 // Ignore error if column already exists
             });
         }
-    });
-
-    // Add avatar column if it doesn't exist (for existing databases)
-    db.run("ALTER TABLE users ADD COLUMN avatar TEXT", (err) => {
-        // Ignore error if column already exists
     });
 
     // Credit transactions table
@@ -142,7 +157,7 @@ const authenticateToken = (req, res, next) => {
         req.user = verified;
         next();
     } catch (err) {
-        res.status(400).json({ error: 'Invalid token' });
+        res.status(401).json({ error: 'Invalid token' });
     }
 };
 
@@ -169,7 +184,7 @@ app.get('/admin-panel', (req, res) => {
 
 // User registration
 app.post('/api/register', async (req, res) => {
-    const { username, password, email, publicKey } = req.body;
+    const { username, password, email, publicKey, encryptedPrivateKey } = req.body;
 
     if (!username || !password || !email) {
         return res.status(400).json({ error: 'All fields are required' });
@@ -179,13 +194,14 @@ app.post('/api/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         db.run(
-            'INSERT INTO users (username, password, email, public_key, credits) VALUES (?, ?, ?, ?, ?)',
-            [username, hashedPassword, email, publicKey, 10], // 10 free credits
+            'INSERT INTO users (username, password, email, public_key, encrypted_private_key, credits, is_logged_in) VALUES (?, ?, ?, ?, ?, ?, 1)',
+            [username, hashedPassword, email, publicKey, encryptedPrivateKey, 10], // 10 free credits, auto-login
             function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE')) {
                         return res.status(400).json({ error: 'Username or email already exists' });
                     }
+                    console.error("Registration error:", err);
                     return res.status(500).json({ error: 'Registration failed' });
                 }
 
@@ -205,13 +221,14 @@ app.post('/api/register', async (req, res) => {
             }
         );
     } catch (err) {
+        console.error("Registration server error:", err);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
 // User login
 app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, forceLogin } = req.body;
 
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
         if (err || !user) {
@@ -223,27 +240,70 @@ app.post('/api/login', (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        const token = jwt.sign(
-            { id: user.id, username: user.username, isAdmin: user.is_admin === 1 },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        if (user.is_logged_in && !forceLogin) {
+            return res.status(403).json({ error: 'User already logged in on another device.', requiresForceLogin: true });
+        }
 
-        res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
-        res.json({
-            message: 'Login successful',
-            token,
-            userId: user.id,
-            username: user.username,
-            isAdmin: user.is_admin === 1,
-            credits: user.credits
+        // Set logged in status
+        db.run('UPDATE users SET is_logged_in = 1 WHERE id = ?', [user.id], (updateErr) => {
+            if (updateErr) {
+                return res.status(500).json({ error: 'Login failed (status update)' });
+            }
+
+            const token = jwt.sign(
+                { id: user.id, username: user.username, isAdmin: user.is_admin === 1 },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+            res.json({
+                message: 'Login successful',
+                token,
+                userId: user.id,
+                username: user.username,
+                isAdmin: user.is_admin === 1,
+                credits: user.credits,
+                publicKey: user.public_key,
+                encryptedPrivateKey: user.encrypted_private_key
+            });
         });
     });
 });
 
+// User logout
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+    db.run('UPDATE users SET is_logged_in = 0 WHERE id = ?', [req.user.id], (err) => {
+        if (err) {
+            return res.status(500).json({ error: 'Logout failed' });
+        }
+        res.clearCookie('token');
+        res.json({ message: 'Logged out successfully' });
+    });
+});
+
+// Sync private key (for existing users or re-sync)
+app.post('/api/user/sync-key', authenticateToken, (req, res) => {
+    const { encryptedPrivateKey } = req.body;
+    if (!encryptedPrivateKey) {
+        return res.status(400).json({ error: 'No key provided' });
+    }
+
+    db.run('UPDATE users SET encrypted_private_key = ? WHERE id = ?',
+        [encryptedPrivateKey, req.user.id],
+        (err) => {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to sync key' });
+            }
+            res.json({ message: 'Key synced successfully' });
+        }
+    );
+});
+
+
 // Get user info
 app.get('/api/user/me', authenticateToken, (req, res) => {
-    db.get('SELECT id, username, email, credits, public_key, avatar FROM users WHERE id = ?',
+    db.get('SELECT id, username, email, credits, public_key, encrypted_private_key, avatar FROM users WHERE id = ?',
         [req.user.id],
         (err, user) => {
             if (err || !user) {
