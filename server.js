@@ -179,7 +179,7 @@ app.get('/chat', authenticateToken, (req, res) => {
 });
 
 app.get('/admin-panel', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // User registration
