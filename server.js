@@ -141,8 +141,11 @@ db.serialize(() => {
         FOREIGN KEY (user_id) REFERENCES users (id)
     )`, (err) => {
         if (!err) {
-            // Add column for existing databases
+            // Add columns for existing databases
             db.run("ALTER TABLE group_members ADD COLUMN encrypted_group_key TEXT", (err) => {
+                // Ignore error if column already exists
+            });
+            db.run("ALTER TABLE group_members ADD COLUMN last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
                 // Ignore error if column already exists
             });
         }
@@ -718,10 +721,13 @@ app.post('/api/groups', authenticateToken, (req, res) => {
     });
 });
 
-// Get user's groups
+// Get user's groups with unread counts
 app.get('/api/groups', authenticateToken, (req, res) => {
     db.all(`
-        SELECT g.*, gm.encrypted_group_key
+        SELECT 
+            g.*, 
+            gm.encrypted_group_key,
+            (SELECT COUNT(*) FROM group_messages WHERE group_id = g.id AND created_at > gm.last_read_at) as unread_count
         FROM groups g
         JOIN group_members gm ON g.id = gm.group_id
         WHERE gm.user_id = ?
@@ -806,16 +812,55 @@ app.delete('/api/groups/:id/members/:userId', authenticateToken, (req, res) => {
 
 // Get group messages
 app.get('/api/groups/:id/messages', authenticateToken, (req, res) => {
+    const groupId = req.params.id;
+    const userId = req.user.id;
+
     db.all(`
         SELECT gm.*, u.username as fromUsername
         FROM group_messages gm
         JOIN users u ON gm.from_user = u.id
         WHERE gm.group_id = ?
         ORDER BY gm.created_at ASC`,
-        [req.params.id],
+        [groupId],
         (err, messages) => {
             if (err) return res.status(500).json({ error: 'Failed to fetch messages' });
+
+            // Mark as read
+            db.run('UPDATE group_members SET last_read_at = CURRENT_TIMESTAMP WHERE group_id = ? AND user_id = ?',
+                [groupId, userId]);
+
             res.json(messages);
+        }
+    );
+});
+
+// Get group status (online members)
+app.get('/api/groups/:id/status', authenticateToken, (req, res) => {
+    const groupId = req.params.id;
+    db.all('SELECT user_id FROM group_members WHERE group_id = ?', [groupId], (err, members) => {
+        if (err) return res.status(500).json({ error: 'Failed to fetch status' });
+
+        let onlineCount = 0;
+        members.forEach(member => {
+            if (connectedUsers.has(member.user_id)) {
+                onlineCount++;
+            }
+        });
+
+        res.json({
+            onlineCount,
+            totalCount: members.length
+        });
+    });
+});
+
+// Mark group as read
+app.post('/api/groups/:id/read', authenticateToken, (req, res) => {
+    db.run('UPDATE group_members SET last_read_at = CURRENT_TIMESTAMP WHERE group_id = ? AND user_id = ?',
+        [req.params.id, req.user.id],
+        (err) => {
+            if (err) return res.status(500).json({ error: 'Failed to mark as read' });
+            res.json({ message: 'Marked as read' });
         }
     );
 });

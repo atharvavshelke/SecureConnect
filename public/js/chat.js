@@ -211,8 +211,14 @@ function connectWebSocket() {
                 }, false);
             }
         } else {
-            // Notify or update sidebar
-            loadGroups();
+            // Update sidebar unread count
+            const groupIndex = allGroups.findIndex(g => g.id === data.groupId);
+            if (groupIndex !== -1) {
+                allGroups[groupIndex].unread_count = (allGroups[groupIndex].unread_count || 0) + 1;
+                displayUsers();
+            } else {
+                loadGroups();
+            }
         }
     });
 
@@ -371,7 +377,11 @@ function displayUsers() {
 
         const desc = document.createElement('div');
         desc.className = 'user-status';
-        desc.textContent = group.description || 'Secure Group';
+        if (group.unread_count > 0) {
+            desc.innerHTML = `<span style="color: var(--primary); font-weight: bold;">${group.unread_count} new messages</span>`;
+        } else {
+            desc.textContent = group.description || '';
+        }
 
         details.appendChild(name);
         details.appendChild(desc);
@@ -985,7 +995,36 @@ async function openGroupChat(group, element) {
     chatWindow.classList.remove('hidden');
 
     chatUsername.textContent = group.name;
-    document.getElementById('chatStatus').textContent = 'Group Chat';
+    const chatStatus = document.getElementById('chatStatus');
+    chatStatus.textContent = 'Loading status...';
+
+    // Update unread count locally and mark as read on server
+    const groupInList = allGroups.find(g => g.id === group.id);
+    if (groupInList && groupInList.unread_count > 0) {
+        groupInList.unread_count = 0;
+        displayUsers();
+        fetch(`/api/groups/${group.id}/read`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(err => console.error('Failed to mark group as read:', err));
+    }
+
+    // Fetch group status
+    fetch(`/api/groups/${group.id}/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
+        .then(res => res.json())
+        .then(status => {
+            if (status.onlineCount > 0) {
+                chatStatus.textContent = `${status.onlineCount} online`;
+            } else {
+                chatStatus.textContent = `${status.totalCount} members`;
+            }
+        })
+        .catch(() => {
+            chatStatus.textContent = 'Group Chat';
+        });
+
     chatAvatar.style.background = 'linear-gradient(135deg, var(--secondary), var(--primary))';
     chatAvatar.textContent = group.name.charAt(0).toUpperCase();
 
