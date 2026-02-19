@@ -278,17 +278,85 @@ function displayUsers(users) {
 
     users.forEach(user => {
         const row = document.createElement('tr');
+        if (user.is_banned) {
+            row.classList.add('banned-user');
+        }
 
         row.innerHTML = `
             <td>${user.id}</td>
-            <td>${user.username}</td>
+            <td>${user.username} ${user.is_banned ? '<span class="status-tag banned">BANNED</span>' : ''}</td>
             <td>${user.email}</td>
             <td><span class="credit-badge">${user.credits}</span></td>
             <td><span class="date-text">${new Date(user.created_at).toLocaleDateString()}</span></td>
+            <td>
+                <div class="user-actions">
+                    <button class="action-btn-small ${user.is_banned ? 'btn-unban' : 'btn-ban'}" onclick="toggleBanUser(${user.id}, ${!user.is_banned})">
+                        ${user.is_banned ? 'Unban' : 'Ban'}
+                    </button>
+                    <button class="action-btn-small btn-delete" onclick="deleteUser(${user.id})">
+                        Delete
+                    </button>
+                </div>
+            </td>
         `;
 
         tbody.appendChild(row);
     });
+}
+
+async function toggleBanUser(userId, shouldBan) {
+    const action = shouldBan ? 'ban' : 'unban';
+    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/ban`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ban: shouldBan })
+        });
+
+        if (response.ok) {
+            alert(`User ${action}ned successfully!`);
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert(data.error || `Failed to ${action} user`);
+        }
+    } catch (error) {
+        console.error(`Failed to ${action} user:`, error);
+        alert('Connection error. Please try again.');
+    }
+}
+
+async function deleteUser(userId) {
+    if (!confirm('Are you sure you want to PERMANENTLY DELETE this user? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`
+            }
+        });
+
+        if (response.ok) {
+            alert('User deleted successfully!');
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to delete user');
+        }
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert('Connection error. Please try again.');
+    }
 }
 
 function logout() {

@@ -682,3 +682,78 @@ body {
         color: var(--text-primary);
     }
 }
+
+/* User Management Actions */
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn-small {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.btn-ban {
+    background: rgba(255, 170, 0, 0.1);
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.btn-ban:hover {
+    background: var(--warning);
+    color: var(--bg-dark);
+}
+
+.btn-unban {
+    background: rgba(0, 255, 136, 0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.btn-unban:hover {
+    background: var(--success);
+    color: var(--bg-dark);
+}
+
+.btn-delete {
+    background: rgba(255, 51, 102, 0.1);
+    border-color: var(--error);
+    color: var(--error);
+}
+
+.btn-delete:hover {
+    background: var(--error);
+    color: var(--text-primary);
+}
+
+.status-tag {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+.status-tag.banned {
+    background: var(--error);
+    color: var(--text-primary);
+    box-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+}
+
+.banned-user {
+    background: rgba(255, 51, 102, 0.05) !important;
+}
+
+.banned-user:hover {
+    background: rgba(255, 51, 102, 0.1) !important;
+}

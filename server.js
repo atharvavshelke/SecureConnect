@@ -64,6 +64,7 @@ db.serialize(() => {
         encrypted_private_key TEXT,
         is_logged_in INTEGER DEFAULT 0,
         is_admin INTEGER DEFAULT 0,
+        is_banned INTEGER DEFAULT 0,
         avatar TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
@@ -72,7 +73,8 @@ db.serialize(() => {
             const columnsToAdd = [
                 { name: "avatar", type: "TEXT" },
                 { name: "encrypted_private_key", type: "TEXT" },
-                { name: "is_logged_in", type: "INTEGER DEFAULT 0" }
+                { name: "is_logged_in", type: "INTEGER DEFAULT 0" },
+                { name: "is_banned", type: "INTEGER DEFAULT 0" }
             ];
 
             columnsToAdd.forEach(col => {
@@ -195,7 +197,14 @@ const authenticateToken = (req, res, next) => {
     try {
         const verified = jwt.verify(token, JWT_SECRET);
         req.user = verified;
-        next();
+
+        // Check if user is banned
+        db.get('SELECT is_banned FROM users WHERE id = ?', [verified.id], (err, user) => {
+            if (err || (user && user.is_banned)) {
+                return res.status(403).json({ error: 'Your account has been banned' });
+            }
+            next();
+        });
     } catch (err) {
         res.status(401).json({ error: 'Invalid token' });
     }
@@ -312,6 +321,10 @@ app.post('/api/login', (req, res) => {
 
         if (user.is_logged_in && !forceLogin) {
             return res.status(403).json({ error: 'User already logged in on another device.', requiresForceLogin: true });
+        }
+
+        if (user.is_banned) {
+            return res.status(403).json({ error: 'Your account has been banned' });
         }
 
         // Set logged in status
@@ -618,7 +631,7 @@ app.post('/api/admin/transactions/:id/reject', authenticateToken, requireAdmin, 
 // Admin: Get all users
 app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
     db.all(
-        'SELECT id, username, email, credits, created_at FROM users WHERE is_admin = 0',
+        'SELECT id, username, email, credits, is_banned, created_at FROM users WHERE is_admin = 0',
         (err, users) => {
             if (err) {
                 return res.status(500).json({ error: 'Failed to fetch users' });
@@ -626,6 +639,46 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
             res.json(users);
         }
     );
+});
+
+// Admin: Ban/Unban user
+app.post('/api/admin/users/:id/ban', authenticateToken, requireAdmin, (req, res) => {
+    const userId = req.params.id;
+    const { ban } = req.body; // true to ban, false to unban
+
+    db.run(
+        'UPDATE users SET is_banned = ? WHERE id = ? AND is_admin = 0',
+        [ban ? 1 : 0, userId],
+        function (err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to update user status' });
+            }
+            if (this.changes === 0) {
+                return res.status(404).json({ error: 'User not found or is an admin' });
+            }
+            res.json({ message: ban ? 'User banned successfully' : 'User unbanned successfully' });
+        }
+    );
+});
+
+// Admin: Delete user
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+    const userId = req.params.id;
+
+    db.serialize(() => {
+        // Delete user's messages, group memberships, etc. to maintain referential integrity if needed
+        // For simplicity, we'll just delete the user and rely on the fact that we might need to clean up related data
+        // but often in small apps we just delete the user.
+        db.run('DELETE FROM users WHERE id = ? AND is_admin = 0', [userId], function (err) {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to delete user' });
+            }
+            if (this.changes === 0) {
+                return res.status(404).json({ error: 'User not found or is an admin' });
+            }
+            res.json({ message: 'User deleted successfully' });
+        });
+    });
 });
 
 // --- Group API Routes ---
