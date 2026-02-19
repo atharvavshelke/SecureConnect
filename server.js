@@ -1047,6 +1047,16 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('call-ended', (data) => {
+        const { toUserId } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('call-ended', {
+                fromUserId: socket.userId
+            });
+        }
+    });
+
     socket.on('disconnect', () => {
         if (socket.userId) {
             connectedUsers.delete(socket.userId);

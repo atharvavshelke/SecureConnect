@@ -282,6 +282,11 @@ function connectWebSocket() {
         }
     });
 
+    socket.on('call-ended', () => {
+        console.log('Call ended by peer');
+        endCall(false); // End call locally without emitting again
+    });
+
     socket.on('auth-error', () => {
         alert('Authentication failed. Please login again.');
         logout();
@@ -1150,9 +1155,9 @@ async function startVoiceCall() {
 
         peerConnection.ontrack = (event) => {
             remoteStream = event.streams[0];
-            const audio = new Audio();
+            const audio = document.getElementById('remoteAudio');
             audio.srcObject = remoteStream;
-            audio.play();
+            audio.play().catch(e => console.error('Error playing remote audio:', e));
         };
 
         const offer = await peerConnection.createOffer();
@@ -1223,9 +1228,9 @@ async function answerCall() {
 
         peerConnection.ontrack = (event) => {
             remoteStream = event.streams[0];
-            const audio = new Audio();
+            const audio = document.getElementById('remoteAudio');
             audio.srcObject = remoteStream;
-            audio.play();
+            audio.play().catch(e => console.error('Error playing remote audio:', e));
         };
 
         await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -1248,9 +1253,17 @@ async function answerCall() {
     }
 }
 
-function endCall() {
+function endCall(notifyPeer = true) {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
+
+    // Notify peer before clearing state
+    if (notifyPeer) {
+        const targetUserId = currentChatUser?.id || window.incomingCallData?.fromUserId;
+        if (targetUserId) {
+            socket.emit('call-ended', { toUserId: targetUserId });
+        }
+    }
 
     peerConnection = null;
     localStream = null;
@@ -1259,12 +1272,7 @@ function endCall() {
     stopCallTimer();
 
     document.getElementById('callOverlay').classList.add('hidden');
-
-    // Notify peer if in a call
-    const targetUserId = currentChatType === 'private' ? currentChatUser?.id : window.incomingCallData?.fromUserId;
-    if (targetUserId) {
-        socket.emit('ice-candidate', { toUserId: targetUserId, candidate: null }); // Signal end
-    }
+    window.incomingCallData = null;
 }
 
 function startCallTimer() {
