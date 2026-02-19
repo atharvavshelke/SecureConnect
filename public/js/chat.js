@@ -15,6 +15,7 @@ let isCalling = false;
 let callTimer;
 let secondsActive = 0;
 let groupKeys = {}; // cache for decrypted group keys (ArrayBuffers)
+let iceCandidateQueue = [];
 
 const configuration = {
     iceServers: [
@@ -268,19 +269,24 @@ function connectWebSocket() {
 
         if (data.answer && peerConnection) {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            await processIceCandidateQueue();
             startCallTimer();
         }
     });
 
     socket.on('ice-candidate', async (data) => {
-        if (peerConnection) {
+        if (peerConnection && peerConnection.remoteDescription) {
             try {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (e) {
                 console.error('Error adding ice candidate', e);
             }
+        } else {
+            console.log('Queuing ICE candidate (peerConnection not ready or remoteDescription not set)');
+            iceCandidateQueue.push(data.candidate);
         }
     });
+
 
     socket.on('call-ended', () => {
         console.log('Call ended by peer');
@@ -1096,6 +1102,19 @@ async function openGroupChat(group, element) {
     }
 }
 
+async function processIceCandidateQueue() {
+    if (!peerConnection || !peerConnection.remoteDescription) return;
+    console.log(`Processing ${iceCandidateQueue.length} queued ICE candidates`);
+    while (iceCandidateQueue.length > 0) {
+        const candidate = iceCandidateQueue.shift();
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.error('Error adding queued ice candidate', e);
+        }
+    }
+}
+
 async function startVoiceCall() {
     if (!currentChatUser || currentChatType !== 'private') return;
     if (isCalling) return;
@@ -1163,6 +1182,9 @@ async function startVoiceCall() {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
+        // Offer is sent, but we don't have remote description yet.
+        // processIceCandidateQueue will be called in 'call-answered' listener once we set remoteDescription.
+
         socket.emit('call-request', {
             toUserId: currentChatUser.id,
             type: 'voice',
@@ -1183,6 +1205,7 @@ async function answerCall() {
     if (!data) return;
 
     try {
+        isCalling = true;
         const answerBtn = document.getElementById('answerBtn');
         answerBtn.classList.add('hidden');
         document.getElementById('callStatus').textContent = 'Connecting...';
@@ -1243,6 +1266,7 @@ async function answerCall() {
             answer: answer
         });
 
+        await processIceCandidateQueue();
         startCallTimer();
         isCalling = true;
 
@@ -1269,6 +1293,7 @@ function endCall(notifyPeer = true) {
     localStream = null;
     remoteStream = null;
     isCalling = false;
+    iceCandidateQueue = [];
     stopCallTimer();
 
     document.getElementById('callOverlay').classList.add('hidden');
