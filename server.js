@@ -117,6 +117,46 @@ db.serialize(() => {
         FOREIGN KEY (user_id) REFERENCES users (id)
     )`);
 
+    // Groups table
+    db.run(`CREATE TABLE IF NOT EXISTS groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users (id)
+    )`);
+
+    // Group members table
+    db.run(`CREATE TABLE IF NOT EXISTS group_members (
+        group_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role TEXT DEFAULT 'member', -- 'admin' or 'member'
+        encrypted_group_key TEXT, -- Group AES key encrypted with member's RSA public key
+        joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (group_id, user_id),
+        FOREIGN KEY (group_id) REFERENCES groups (id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )`, (err) => {
+        if (!err) {
+            // Add column for existing databases
+            db.run("ALTER TABLE group_members ADD COLUMN encrypted_group_key TEXT", (err) => {
+                // Ignore error if column already exists
+            });
+        }
+    });
+
+    // Group messages table
+    db.run(`CREATE TABLE IF NOT EXISTS group_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL,
+        from_user INTEGER NOT NULL,
+        encrypted_content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (group_id) REFERENCES groups (id),
+        FOREIGN KEY (from_user) REFERENCES users (id)
+    )`);
+
     // Create default admin user if not exists
     db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
         if (!row) {
@@ -570,6 +610,99 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
     );
 });
 
+// --- Group API Routes ---
+
+// Create a new group
+app.post('/api/groups', authenticateToken, (req, res) => {
+    const { name, description, encryptedGroupKey } = req.body;
+    if (!name) return res.status(400).json({ error: 'Group name is required' });
+
+    db.serialize(() => {
+        db.run('INSERT INTO groups (name, description, created_by) VALUES (?, ?, ?)',
+            [name, description, req.user.id],
+            function (err) {
+                if (err) return res.status(500).json({ error: 'Failed to create group' });
+
+                const groupId = this.lastID;
+                // Add creator as member with their encrypted version of the group key
+                db.run('INSERT INTO group_members (group_id, user_id, role, encrypted_group_key) VALUES (?, ?, ?, ?)',
+                    [groupId, req.user.id, 'admin', encryptedGroupKey],
+                    (err) => {
+                        if (err) return res.status(500).json({ error: 'Failed to add creator to group' });
+                        res.json({ id: groupId, name, description });
+                    }
+                );
+            }
+        );
+    });
+});
+
+// Get user's groups
+app.get('/api/groups', authenticateToken, (req, res) => {
+    db.all(`
+        SELECT g.*, gm.encrypted_group_key
+        FROM groups g
+        JOIN group_members gm ON g.id = gm.group_id
+        WHERE gm.user_id = ?
+        ORDER BY g.created_at DESC`,
+        [req.user.id],
+        (err, groups) => {
+            if (err) return res.status(500).json({ error: 'Failed to fetch groups' });
+            res.json(groups);
+        }
+    );
+});
+
+// Get group members
+app.get('/api/groups/:id/members', authenticateToken, (req, res) => {
+    db.all(`
+        SELECT u.id, u.username, u.avatar, gm.role, gm.joined_at
+        FROM users u
+        JOIN group_members gm ON u.id = gm.user_id
+        WHERE gm.group_id = ?`,
+        [req.params.id],
+        (err, members) => {
+            if (err) return res.status(500).json({ error: 'Failed to fetch group members' });
+            res.json(members);
+        }
+    );
+});
+
+// Add user to group
+app.post('/api/groups/:id/members', authenticateToken, (req, res) => {
+    const { userId, encryptedGroupKey } = req.body;
+    if (!userId) return res.status(400).json({ error: 'User ID is required' });
+
+    db.run('INSERT INTO group_members (group_id, user_id, encrypted_group_key) VALUES (?, ?, ?)',
+        [req.params.id, userId, encryptedGroupKey],
+        (err) => {
+            if (err) {
+                if (err.message.includes('UNIQUE')) {
+                    return res.status(400).json({ error: 'User is already a member' });
+                }
+                return res.status(500).json({ error: 'Failed to add member' });
+            }
+            res.json({ message: 'Member added successfully' });
+        }
+    );
+});
+
+// Get group messages
+app.get('/api/groups/:id/messages', authenticateToken, (req, res) => {
+    db.all(`
+        SELECT gm.*, u.username as fromUsername
+        FROM group_messages gm
+        JOIN users u ON gm.from_user = u.id
+        WHERE gm.group_id = ?
+        ORDER BY gm.created_at ASC`,
+        [req.params.id],
+        (err, messages) => {
+            if (err) return res.status(500).json({ error: 'Failed to fetch messages' });
+            res.json(messages);
+        }
+    );
+});
+
 // Deduct credit for sending message
 const deductCredit = (userId, callback) => {
     db.run(
@@ -657,6 +790,88 @@ io.on('connection', (socket) => {
                 }
             );
         });
+    });
+
+    socket.on('join-group', (groupId) => {
+        if (!socket.userId) return;
+        // Verify membership
+        db.get('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, socket.userId], (err, row) => {
+            if (row) {
+                socket.join(`group_${groupId}`);
+            }
+        });
+    });
+
+    socket.on('send-group-message', (data) => {
+        const { groupId, encryptedContent } = data;
+        if (!socket.userId) return socket.emit('message-error', 'Not authenticated');
+
+        // Verify membership
+        db.get('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, socket.userId], (err, member) => {
+            if (err || !member) return socket.emit('message-error', 'Not a member of this group');
+
+            deductCredit(socket.userId, (err) => {
+                if (err) return socket.emit('message-error', err.message);
+
+                db.run('INSERT INTO group_messages (group_id, from_user, encrypted_content) VALUES (?, ?, ?)',
+                    [groupId, socket.userId, encryptedContent],
+                    function (err) {
+                        if (err) return;
+
+                        const messageData = {
+                            id: this.lastID,
+                            groupId,
+                            fromUserId: socket.userId,
+                            fromUsername: socket.username,
+                            encryptedContent,
+                            created_at: new Date().toISOString()
+                        };
+
+                        io.to(`group_${groupId}`).emit('receive-group-message', messageData);
+                    }
+                );
+            });
+        });
+    });
+
+    // --- WebRTC Signaling ---
+
+    socket.on('call-request', (data) => {
+        // data: { toUserId, type: 'voice', offer }
+        const { toUserId } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('incoming-call', {
+                fromUserId: socket.userId,
+                fromUsername: socket.username,
+                offer: data.offer,
+                type: data.type
+            });
+        }
+    });
+
+    socket.on('call-response', (data) => {
+        // data: { toUserId, accepted, answer }
+        const { toUserId } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('call-answered', {
+                fromUserId: socket.userId,
+                accepted: data.accepted,
+                answer: data.answer
+            });
+        }
+    });
+
+    socket.on('ice-candidate', (data) => {
+        const { toUserId, candidate } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('ice-candidate', {
+                fromUserId: socket.userId,
+                candidate: candidate
+            });
+        }
     });
 
     socket.on('disconnect', () => {

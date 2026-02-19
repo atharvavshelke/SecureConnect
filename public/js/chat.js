@@ -3,9 +3,25 @@
 let socket;
 let currentChatUser = null;
 let allUsers = [];
+let allGroups = [];
+let currentChatType = 'private'; // 'private' or 'group'
 let onlineUsers = [];
 let messageHistory = {};
 let currentUserAvatarUrl = null;
+let peerConnection;
+let localStream;
+let remoteStream;
+let isCalling = false;
+let callTimer;
+let secondsActive = 0;
+let groupKeys = {}; // cache for decrypted group keys (ArrayBuffers)
+
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
 
 // Check authentication
 const token = localStorage.getItem('token');
@@ -139,24 +155,65 @@ function connectWebSocket() {
         const decryptedMessage = await secureEncryption.decryptMessage(data.encryptedContent);
 
         // Add to message history
-        if (!messageHistory[data.fromUserId]) {
-            messageHistory[data.fromUserId] = [];
+        const historyKey = `private_${data.fromUserId}`;
+        if (!messageHistory[historyKey]) {
+            messageHistory[historyKey] = [];
         }
-        messageHistory[data.fromUserId].push({
+        messageHistory[historyKey].push({
             ...data,
             decryptedMessage,
             received: true
         });
 
-        // Display if chatting with this user
-        if (currentChatUser && currentChatUser.id === data.fromUserId) {
-            displayMessage(data.fromUsername, decryptedMessage, false);
-            // Mark as read immediately if chat is open? 
-            // For now, reload chats to update order/unread count if not current
+        // Display
+        if (currentChatType === 'private' && currentChatUser && currentChatUser.id === data.fromUserId) {
+            displayMessage({
+                ...data,
+                decryptedMessage
+            }, false);
+            markAsRead(data.fromUserId);
+        } else {
+            // Update unread count in sidebar (already handled by loadChats periodically, but could be real-time)
+            loadChats();
+        }
+    });
+
+    socket.on('receive-group-message', async (data) => {
+        // Decrypt and display message
+        let decryptedMessage;
+        if (groupKeys[data.groupId]) {
+            try {
+                decryptedMessage = await secureEncryption.decryptWithGroupKey(data.encryptedContent, groupKeys[data.groupId]);
+            } catch (e) {
+                decryptedMessage = '[Decryption Failed - Key Error]';
+            }
+        } else {
+            decryptedMessage = '[Key pending...]';
         }
 
-        // Refresh chat list to show new message/counts
-        loadChats();
+        // Add to message history
+        const historyKey = `group_${data.groupId}`;
+        if (!messageHistory[historyKey]) {
+            messageHistory[historyKey] = [];
+        }
+        messageHistory[historyKey].push({
+            ...data,
+            decryptedMessage,
+            received: true
+        });
+
+        if (currentChatType === 'group' && currentChatUser && currentChatUser.id === data.groupId) {
+            // Only display if not me (prevent double display)
+            if (data.fromUserId !== parseInt(localStorage.getItem('userId'))) {
+                displayMessage({
+                    ...data,
+                    decryptedMessage: decryptedMessage
+                }, false);
+            }
+        } else {
+            // Notify or update sidebar
+            loadGroups();
+        }
     });
 
     socket.on('message-sent', async (data) => {
@@ -173,6 +230,50 @@ function connectWebSocket() {
     socket.on('users-online', (userIds) => {
         onlineUsers = userIds;
         updateOnlineStatus(userIds);
+    });
+
+    // --- Voice Calling Listeners ---
+    socket.on('incoming-call', async (data) => {
+        if (isCalling) {
+            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false, reason: 'Busy' });
+            return;
+        }
+
+        const callOverlay = document.getElementById('callOverlay');
+        const callTargetName = document.getElementById('callTargetName');
+        const callStatus = document.getElementById('callStatus');
+        const answerBtn = document.getElementById('answerBtn');
+
+        callOverlay.classList.remove('hidden');
+        callTargetName.textContent = data.fromUsername;
+        callStatus.textContent = `Incoming ${data.type} call...`;
+        answerBtn.classList.remove('hidden');
+
+        // Store call data for answering
+        window.incomingCallData = data;
+    });
+
+    socket.on('call-answered', async (data) => {
+        if (!data.accepted) {
+            alert('Call rejected or user busy');
+            endCall();
+            return;
+        }
+
+        if (data.answer && peerConnection) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            startCallTimer();
+        }
+    });
+
+    socket.on('ice-candidate', async (data) => {
+        if (peerConnection) {
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (e) {
+                console.error('Error adding ice candidate', e);
+            }
+        }
     });
 
     socket.on('auth-error', () => {
@@ -241,21 +342,53 @@ function setupSearch() {
 function displayUsers() {
     const usersList = document.getElementById('usersList');
 
-    if (allUsers.length === 0) {
-        usersList.innerHTML = '<div class="loading">No chats yet. Search to find users.</div>';
+    if (allUsers.length === 0 && allGroups.length === 0) {
+        usersList.innerHTML = '<div class="loading">No chats or groups yet.</div>';
         updateListCount(0);
         return;
     }
 
     usersList.innerHTML = '';
 
+    // Render Groups first
+    allGroups.forEach(group => {
+        const item = document.createElement('div');
+        item.className = 'user-item';
+        item.id = `group-item-${group.id}`;
+        item.onclick = (e) => openGroupChat(group, e.currentTarget);
+
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar';
+        avatar.style.background = 'linear-gradient(135deg, var(--secondary), var(--primary))';
+        avatar.textContent = (group.name || '?').charAt(0).toUpperCase();
+
+        const details = document.createElement('div');
+        details.className = 'user-details';
+
+        const name = document.createElement('div');
+        name.className = 'user-username';
+        name.textContent = group.name;
+
+        const desc = document.createElement('div');
+        desc.className = 'user-status';
+        desc.textContent = group.description || 'Secure Group';
+
+        details.appendChild(name);
+        details.appendChild(desc);
+        item.appendChild(avatar);
+        item.appendChild(details);
+        usersList.appendChild(item);
+    });
+
+    // Render Users
     allUsers.forEach(user => {
         const userItem = document.createElement('div');
         userItem.className = 'user-item';
-        if (currentChatUser && currentChatUser.id === user.id) {
+        userItem.id = `user-item-${user.id}`;
+        if (currentChatUser && currentChatUser.id === user.id && currentChatType === 'private') {
             userItem.classList.add('active');
         }
-        userItem.onclick = () => openChat(user);
+        userItem.onclick = (e) => openChat(user, e.currentTarget);
 
         const avatar = document.createElement('div');
         avatar.className = 'user-avatar';
@@ -295,7 +428,7 @@ function displayUsers() {
         usersList.appendChild(userItem);
     });
 
-    updateListCount(allUsers.length);
+    updateListCount(allUsers.length + allGroups.length);
 
     // Refresh online status
     updateOnlineStatus(onlineUsers);
@@ -315,7 +448,7 @@ function displaySearchResults(results, query) {
     results.forEach(user => {
         const userItem = document.createElement('div');
         userItem.className = 'user-item';
-        userItem.onclick = () => openChat(user);
+        userItem.onclick = (e) => openChat(user, e.currentTarget);
 
         const avatar = document.createElement('div');
         avatar.className = 'user-avatar';
@@ -387,8 +520,9 @@ function updateHeaderStatus(user) {
     }
 }
 
-async function openChat(user) {
+async function openChat(user, element) {
     currentChatUser = user;
+    currentChatType = 'private';
 
     // Mobile: Show chat view
     document.querySelector('.chat-container').classList.add('mobile-chat-active');
@@ -397,7 +531,12 @@ async function openChat(user) {
     document.querySelectorAll('.user-item').forEach(item => {
         item.classList.remove('active');
     });
-    event.currentTarget.classList.add('active');
+    if (element) {
+        element.classList.add('active');
+    } else {
+        const item = document.getElementById(`user-item-${user.id}`);
+        if (item) item.classList.add('active');
+    }
 
     // Show chat window
     document.getElementById('chatWelcome').classList.add('hidden');
@@ -405,17 +544,15 @@ async function openChat(user) {
 
     // Update chat header
     document.getElementById('chatUsername').textContent = user.username;
+    document.getElementById('chatStatus').textContent = 'Encrypted';
     const chatAvatar = document.getElementById('chatAvatar');
-    if (user.avatar) {
-        chatAvatar.innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
-    } else {
-        chatAvatar.innerHTML = '';
-        chatAvatar.innerHTML = '';
-        chatAvatar.textContent = user.username.charAt(0).toUpperCase();
-    }
+    chatAvatar.innerHTML = user.avatar ? `<img src="${user.avatar}">` : user.username.charAt(0).toUpperCase();
 
     // Update status in header
     updateHeaderStatus(user);
+
+    // Show/Hide buttons
+    document.getElementById('groupInfoBtn').classList.add('hidden');
 
 
     // Clear existing messages while loading
@@ -450,10 +587,11 @@ async function openChat(user) {
             }));
 
             // Update message history
-            messageHistory[user.id] = decryptedMessages;
+            const historyKey = `private_${user.id}`;
+            messageHistory[historyKey] = decryptedMessages;
 
             // Display messages
-            displayMessageHistory(user.id);
+            displayMessageHistory(`private_${user.id}`);
         } else {
             console.error('Failed to load message history');
             document.getElementById('messagesContainer').innerHTML = '<div class="error">Failed to load history</div>';
@@ -464,25 +602,23 @@ async function openChat(user) {
     }
 }
 
-function displayMessageHistory(userId) {
+function displayMessageHistory(key) {
     const messagesContainer = document.getElementById('messagesContainer');
     messagesContainer.innerHTML = '';
 
-    const history = messageHistory[userId] || [];
+    const history = messageHistory[key] || [];
     history.forEach(msg => {
-        displayMessage(
-            msg.received ? msg.fromUsername : currentUsername,
-            msg.decryptedMessage,
-            !msg.received
-        );
+        displayMessage(msg, !msg.received);
     });
 
     // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-function displayMessage(username, message, isSent) {
+function displayMessage(data, isSent) {
     const messagesContainer = document.getElementById('messagesContainer');
+    const username = isSent ? (localStorage.getItem('username') || 'Me') : data.fromUsername;
+    const message = data.decryptedMessage || data.encryptedContent; // Fallback to content if not decrypted
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
@@ -493,11 +629,9 @@ function displayMessage(username, message, isSent) {
     // Find the avatar URL for the user (sender)
     let avatarUrl = null;
     if (isSent) {
-        // Current user
         avatarUrl = currentUserAvatarUrl;
     } else {
-        // Other user - from allUsers or currentChatUser
-        const sender = allUsers.find(u => u.username === username) || currentChatUser;
+        const sender = allUsers.find(u => u.username === username) || (currentChatType === 'group' ? null : currentChatUser);
         if (sender && sender.avatar) avatarUrl = sender.avatar;
     }
 
@@ -518,7 +652,8 @@ function displayMessage(username, message, isSent) {
 
     const time = document.createElement('div');
     time.className = 'message-time';
-    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const msgDate = data.created_at ? new Date(data.created_at) : new Date();
+    time.textContent = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     content.appendChild(bubble);
     content.appendChild(time);
@@ -526,7 +661,6 @@ function displayMessage(username, message, isSent) {
     messageDiv.appendChild(content);
     messagesContainer.appendChild(messageDiv);
 
-    // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
@@ -546,34 +680,54 @@ function setupMessageForm() {
         if (!message) return;
 
         try {
-            // Get my public key for self-encryption
-            const myPublicKeyString = await secureEncryption.exportPublicKey();
+            let encryptedContent;
+            if (currentChatType === 'private') {
+                // Get my public key for self-encryption
+                const myPublicKeyString = await secureEncryption.exportPublicKey();
 
-            // Encrypt message with recipient's public key AND my public key
-            const encryptedContent = await secureEncryption.encryptMessage(
-                message,
-                currentChatUser.public_key,
-                myPublicKeyString
-            );
+                // Encrypt message with recipient's public key AND my public key
+                encryptedContent = await secureEncryption.encryptMessage(
+                    message,
+                    currentChatUser.public_key,
+                    myPublicKeyString
+                );
 
-            // Send via WebSocket
-            socket.emit('send-message', {
-                toUserId: currentChatUser.id,
-                encryptedContent
-            });
+                // Send via WebSocket
+                socket.emit('send-message', {
+                    toUserId: currentChatUser.id,
+                    encryptedContent
+                });
+            } else if (currentChatType === 'group') {
+                const groupKey = groupKeys[currentChatUser.id];
+                if (!groupKey) {
+                    alert('Group key not found. You may not have access to this group\'s E2EE.');
+                    return;
+                }
+
+                encryptedContent = await secureEncryption.encryptWithGroupKey(message, groupKey);
+
+                socket.emit('send-group-message', {
+                    groupId: currentChatUser.id,
+                    encryptedContent: encryptedContent
+                });
+            }
+
 
             // Store in local history
-            if (!messageHistory[currentChatUser.id]) {
-                messageHistory[currentChatUser.id] = [];
+            const historyKey = `${currentChatType}_${currentChatUser.id}`;
+            if (!messageHistory[historyKey]) {
+                messageHistory[historyKey] = [];
             }
-            messageHistory[currentChatUser.id].push({
+            const historyItem = {
                 fromUsername: currentUsername,
                 decryptedMessage: message,
+                created_at: new Date().toISOString(),
                 received: false
-            });
+            };
+            messageHistory[historyKey].push(historyItem);
 
             // Display message
-            displayMessage(currentUsername, message, true);
+            displayMessage(historyItem, true);
 
             // Clear input
             messageInput.value = '';
@@ -586,6 +740,7 @@ function setupMessageForm() {
 
 function closeChat() {
     currentChatUser = null;
+    currentChatType = null;
 
     // Check if on mobile and handle accordingly
     if (document.querySelector('.chat-container').classList.contains('mobile-chat-active')) {
@@ -731,3 +886,482 @@ document.getElementById('creditModal').addEventListener('click', (e) => {
         closeCreditModal();
     }
 });
+
+// Group Modal outside click listener
+document.getElementById('groupModal').addEventListener('click', (e) => {
+    if (e.target.id === 'groupModal') {
+        closeCreateGroupModal();
+    }
+});
+
+// --- Group & Calling UI State ---
+
+function showCreateGroupModal() {
+    document.getElementById('groupModal').classList.remove('hidden');
+}
+
+function closeCreateGroupModal() {
+    document.getElementById('groupModal').classList.add('hidden');
+}
+
+async function handleCreateGroup(e) {
+    if (e) e.preventDefault();
+    const name = document.getElementById('groupName').value.trim();
+    const description = document.getElementById('groupDescription').value.trim();
+
+    if (!name) return;
+
+    try {
+        // E2EE: Generate Group Key
+        const groupKeyBuffer = await secureEncryption.generateGroupKey();
+        const myPublicKey = await secureEncryption.exportPublicKey();
+        const encryptedGroupKey = await secureEncryption.encryptGroupKeyForMember(groupKeyBuffer, myPublicKey);
+
+        const response = await fetch('/api/groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ name, description, encryptedGroupKey })
+        });
+
+        if (response.ok) {
+            closeCreateGroupModal();
+            loadGroups();
+            document.getElementById('createGroupForm').reset();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to create group');
+        }
+    } catch (error) {
+        console.error('Error creating group:', error);
+    }
+}
+
+async function loadGroups() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+        const response = await fetch('/api/groups', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            allGroups = await response.json();
+            displayUsers(); // Re-render main list
+        }
+    } catch (error) {
+        console.error('Failed to load groups:', error);
+    }
+}
+
+async function openGroupChat(group, element) {
+    currentChatUser = group;
+    currentChatType = 'group';
+    const chatWindow = document.getElementById('chatWindow');
+    const chatWelcome = document.getElementById('chatWelcome');
+    const chatUsername = document.getElementById('chatUsername');
+    const chatAvatar = document.getElementById('chatAvatar');
+
+    // Mobile: Show chat view
+    document.querySelector('.chat-container').classList.add('mobile-chat-active');
+
+    // Update active state
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    if (element) {
+        element.classList.add('active');
+    } else {
+        const item = document.getElementById(`group-item-${group.id}`);
+        if (item) item.classList.add('active');
+    }
+
+    chatWelcome.classList.add('hidden');
+    chatWindow.classList.remove('hidden');
+
+    chatUsername.textContent = group.name;
+    document.getElementById('chatStatus').textContent = 'Group Chat';
+    chatAvatar.style.background = 'linear-gradient(135deg, var(--secondary), var(--primary))';
+    chatAvatar.textContent = group.name.charAt(0).toUpperCase();
+
+    // Show/Hide buttons
+    document.getElementById('groupInfoBtn').classList.remove('hidden');
+
+    // Decrypt group key if not cached
+    if (!groupKeys[group.id] && group.encrypted_group_key) {
+        try {
+            groupKeys[group.id] = await secureEncryption.decryptGroupKey(group.encrypted_group_key);
+        } catch (e) {
+            console.error('Failed to decrypt group key:', e);
+        }
+    }
+
+    // Join socket room
+    socket.emit('join-group', group.id);
+
+    // Load history
+    try {
+        const response = await fetch(`/api/groups/${group.id}/messages`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.ok) {
+            const messages = await response.json();
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            const groupKey = groupKeys[group.id];
+
+            for (const msg of messages) {
+                let decrypted = '[Encrypted]';
+                if (groupKey) {
+                    try {
+                        decrypted = await secureEncryption.decryptWithGroupKey(msg.encrypted_content, groupKey);
+                    } catch (e) {
+                        decrypted = '[Decryption Failed]';
+                    }
+                }
+
+                const isSent = msg.from_user === parseInt(localStorage.getItem('userId'));
+                displayMessage({
+                    ...msg,
+                    decryptedMessage: decrypted
+                }, isSent);
+            }
+
+            // Update message history
+            const historyKey = `group_${group.id}`;
+            messageHistory[historyKey] = messages.map(msg => {
+                const isSent = msg.from_user === parseInt(localStorage.getItem('userId'));
+                return {
+                    ...msg,
+                    decryptedMessage: '[History Decrypted]', // Simplified for now since we displayed them
+                    received: !isSent
+                };
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load group history:', error);
+    }
+}
+
+async function startVoiceCall() {
+    if (!currentChatUser || currentChatType !== 'private') return;
+    if (isCalling) return;
+
+    try {
+        isCalling = true;
+        const callOverlay = document.getElementById('callOverlay');
+        const callTargetName = document.getElementById('callTargetName');
+        const callStatus = document.getElementById('callStatus');
+        const answerBtn = document.getElementById('answerBtn');
+
+        callOverlay.classList.remove('hidden');
+        callTargetName.textContent = currentChatUser.username;
+        callStatus.textContent = 'Calling...';
+        answerBtn.classList.add('hidden');
+
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        peerConnection = new RTCPeerConnection(configuration);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice-candidate', {
+                    toUserId: currentChatUser.id,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            remoteStream = event.streams[0];
+            const audio = new Audio();
+            audio.srcObject = remoteStream;
+            audio.play();
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        socket.emit('call-request', {
+            toUserId: currentChatUser.id,
+            type: 'voice',
+            offer: offer
+        });
+
+    } catch (error) {
+        console.error('Call failed:', error);
+        alert('Could not start call. Check microphone permissions.');
+        endCall();
+    }
+}
+
+async function answerCall() {
+    const data = window.incomingCallData;
+    if (!data) return;
+
+    try {
+        const answerBtn = document.getElementById('answerBtn');
+        answerBtn.classList.add('hidden');
+        document.getElementById('callStatus').textContent = 'Connecting...';
+
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        peerConnection = new RTCPeerConnection(configuration);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice-candidate', {
+                    toUserId: data.fromUserId,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            remoteStream = event.streams[0];
+            const audio = new Audio();
+            audio.srcObject = remoteStream;
+            audio.play();
+        };
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socket.emit('call-response', {
+            toUserId: data.fromUserId,
+            accepted: true,
+            answer: answer
+        });
+
+        startCallTimer();
+        isCalling = true;
+
+    } catch (error) {
+        console.error('Failed to answer call:', error);
+        socket.emit('call-response', { toUserId: data.fromUserId, accepted: false });
+        endCall();
+    }
+}
+
+function endCall() {
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    if (peerConnection) peerConnection.close();
+
+    peerConnection = null;
+    localStream = null;
+    remoteStream = null;
+    isCalling = false;
+    stopCallTimer();
+
+    document.getElementById('callOverlay').classList.add('hidden');
+
+    // Notify peer if in a call
+    const targetUserId = currentChatType === 'private' ? currentChatUser?.id : window.incomingCallData?.fromUserId;
+    if (targetUserId) {
+        socket.emit('ice-candidate', { toUserId: targetUserId, candidate: null }); // Signal end
+    }
+}
+
+function startCallTimer() {
+    const timerElement = document.getElementById('callTimer');
+    const statusElement = document.getElementById('callStatus');
+    timerElement.classList.remove('hidden');
+    statusElement.textContent = 'On Call';
+
+    secondsActive = 0;
+    callTimer = setInterval(() => {
+        secondsActive++;
+        const mins = Math.floor(secondsActive / 60).toString().padStart(2, '0');
+        const secs = (secondsActive % 60).toString().padStart(2, '0');
+        timerElement.textContent = `${mins}:${secs}`;
+    }, 1000);
+}
+
+function stopCallTimer() {
+    clearInterval(callTimer);
+    document.getElementById('callTimer').classList.add('hidden');
+}
+
+async function showGroupMembers() {
+    if (!currentChatUser || currentChatType !== 'group') return;
+
+    document.getElementById('groupMembersModal').classList.remove('hidden');
+    document.getElementById('groupMembersTitle').textContent = `${currentChatUser.name} - Members`;
+
+    loadGroupMembers();
+}
+
+function closeGroupMembers() {
+    document.getElementById('groupMembersModal').classList.add('hidden');
+}
+
+async function loadGroupMembers() {
+    try {
+        const response = await fetch(`/api/groups/${currentChatUser.id}/members`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.ok) {
+            const members = await response.json();
+            displayGroupMembers(members);
+        }
+    } catch (error) {
+        console.error('Failed to load members:', error);
+    }
+}
+
+function displayGroupMembers(members) {
+    const list = document.getElementById('groupMembersList');
+    list.innerHTML = '';
+
+    members.forEach(member => {
+        const item = document.createElement('div');
+        item.className = 'user-item member-item';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar small';
+        avatar.textContent = (member.username || '?').charAt(0).toUpperCase();
+
+        const name = document.createElement('div');
+        name.className = 'user-username';
+        name.textContent = `${member.username} (${member.role})`;
+
+        item.appendChild(avatar);
+        item.appendChild(name);
+        list.appendChild(item);
+    });
+}
+
+// Member search logic (moved to initialization)
+async function setupMemberSearch() {
+    const searchInput = document.getElementById('memberSearchInput');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', async (e) => {
+        const query = e.target.value.trim();
+        if (query.length < 2) {
+            document.getElementById('memberSearchResults').innerHTML = '';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            if (response.ok) {
+                const users = await response.json();
+                if (users.length === 0) {
+                    document.getElementById('memberSearchResults').innerHTML = '<div style="padding: 10px; color: var(--text-secondary);">No users found.</div>';
+                } else {
+                    displayMemberSearchResults(users);
+                }
+            }
+        } catch (error) {
+            console.error('Search failed:', error);
+        }
+    });
+}
+
+function displayMemberSearchResults(users) {
+    const results = document.getElementById('memberSearchResults');
+    results.innerHTML = '';
+
+    users.forEach(user => {
+        if (user.id === parseInt(localStorage.getItem('userId'))) return;
+
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = user.username;
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-mini';
+        addBtn.textContent = 'Add';
+        addBtn.onclick = () => addMemberToGroup(user.id, user.username, user.public_key);
+
+        item.appendChild(nameSpan);
+        item.appendChild(addBtn);
+        results.appendChild(item);
+    });
+}
+
+async function addMemberToGroup(userId, username, userPublicKey) {
+    if (!currentChatUser) return;
+
+    if (!userPublicKey) {
+        alert(`${username} has not set up their encryption keys yet and cannot be added to an encrypted group.`);
+        return;
+    }
+
+    const groupKey = groupKeys[currentChatUser.id];
+    if (!groupKey) {
+        alert('You do not have the group key to invite others.');
+        return;
+    }
+
+    try {
+        // Re-encrypt group key for the new member
+        const encryptedGroupKey = await secureEncryption.encryptGroupKeyForMember(groupKey, userPublicKey);
+
+        const response = await fetch(`/api/groups/${currentChatUser.id}/members`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ userId, encryptedGroupKey })
+        });
+
+        if (response.ok) {
+            alert(`Added ${username} to group!`);
+            document.getElementById('memberSearchInput').value = '';
+            document.getElementById('memberSearchResults').innerHTML = '';
+            loadGroupMembers();
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to add member');
+        }
+    } catch (error) {
+        console.error('Add member error:', error);
+    }
+}
+
+// Initialize listeners
+setTimeout(() => {
+    const groupForm = document.getElementById('createGroupForm');
+    if (groupForm) groupForm.addEventListener('submit', handleCreateGroup);
+
+    const callBtn = document.getElementById('voiceCallBtn');
+    if (callBtn) callBtn.onclick = startVoiceCall;
+
+    const hangupBtn = document.getElementById('hangupBtn');
+    if (hangupBtn) hangupBtn.onclick = endCall;
+
+    const answerBtn = document.getElementById('answerBtn');
+    if (answerBtn) answerBtn.onclick = answerCall;
+
+    // Group Modal outside click
+    document.getElementById('groupMembersModal').addEventListener('click', (e) => {
+        if (e.target.id === 'groupMembersModal') closeGroupMembers();
+    });
+
+    setupMemberSearch();
+    loadGroups();
+}, 100);

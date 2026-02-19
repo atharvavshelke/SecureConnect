@@ -153,6 +153,88 @@ class SecureEncryption {
         }
     }
 
+    // --- Group Specific Encryption ---
+
+    // Generate a random AES key for a group
+    async generateGroupKey() {
+        const key = await window.crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        const exported = await window.crypto.subtle.exportKey("raw", key);
+        return exported; // ArrayBuffer
+    }
+
+    // Encrypt a group key for a member using their public key
+    async encryptGroupKeyForMember(groupKeyBuffer, memberPublicKeyString) {
+        const publicKey = await this.importPublicKey(memberPublicKeyString);
+        const encrypted = await window.crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            publicKey,
+            groupKeyBuffer
+        );
+        return this.arrayBufferToBase64(encrypted);
+    }
+
+    // Decrypt a group key using own private key
+    async decryptGroupKey(encryptedGroupKeyString) {
+        const encryptedBuffer = this.base64ToArrayBuffer(encryptedGroupKeyString);
+        const decrypted = await window.crypto.subtle.decrypt(
+            { name: "RSA-OAEP" },
+            this.privateKey,
+            encryptedBuffer
+        );
+        return decrypted; // ArrayBuffer
+    }
+
+    // Encrypt a message using a group AES key
+    async encryptWithGroupKey(message, groupKeyBuffer) {
+        const aesKey = await window.crypto.subtle.importKey(
+            "raw",
+            groupKeyBuffer,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt"]
+        );
+
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const encoded = new TextEncoder().encode(message);
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            encoded
+        );
+
+        return JSON.stringify({
+            iv: this.arrayBufferToBase64(iv),
+            ciphertext: this.arrayBufferToBase64(ciphertext),
+            isGroup: true
+        });
+    }
+
+    // Decrypt a message using a group AES key
+    async decryptWithGroupKey(encryptedPackageString, groupKeyBuffer) {
+        const pkg = JSON.parse(encryptedPackageString);
+        const aesKey = await window.crypto.subtle.importKey(
+            "raw",
+            groupKeyBuffer,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["decrypt"]
+        );
+
+        const iv = this.base64ToArrayBuffer(pkg.iv);
+        const ciphertext = this.base64ToArrayBuffer(pkg.ciphertext);
+        const decrypted = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            ciphertext
+        );
+
+        return new TextDecoder().decode(decrypted);
+    }
+
     // Decrypt message with own private key
     async decryptMessage(encryptedPackageString) {
         if (!this.privateKey) {
