@@ -147,8 +147,22 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
 
-    if (password.length < 6) {
-        showError('registerError', 'Password must be at least 6 characters long');
+    // Frontend Validation
+    const usernameRegex = /^[a-z0-9]{5,32}$/;
+    if (!usernameRegex.test(username)) {
+        showError('registerError', 'Username must be lowercase alphanumeric and between 5-32 characters long');
+        return;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email) || email.includes('+')) {
+        showError('registerError', 'Please provide a valid email without plus-addressing (e.g., +test is not allowed)');
+        return;
+    }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+        showError('registerError', 'Password must be at least 8 characters, with one uppercase letter and one special character');
         return;
     }
 

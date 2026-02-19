@@ -238,8 +238,26 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ error: 'All fields are required' });
     }
 
+    // Username validation: all lowercase, alphanumeric, 5-32 characters
+    const usernameRegex = /^[a-z0-9]{5,32}$/;
+    if (!usernameRegex.test(username)) {
+        return res.status(400).json({ error: 'Username must be lowercase alphanumeric and between 5-32 characters long' });
+    }
+
     if (username.toLowerCase().includes('admin')) {
         return res.status(400).json({ error: 'Username "admin" is reserved' });
+    }
+
+    // Email validation: proper format, no plus-addressing
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email) || email.includes('+')) {
+        return res.status(400).json({ error: 'Please provide a valid email address. Plus-addressing (e.g., user+test@gmail.com) is not allowed.' });
+    }
+
+    // Password validation: min 8 chars, one uppercase, one special char
+    const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long, contain at least one uppercase letter and one special character' });
     }
 
     try {
