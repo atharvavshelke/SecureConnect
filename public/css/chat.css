@@ -1160,22 +1160,96 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.8rem 1rem;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s ease;
+    gap: 0.75rem;
+}
+
+.search-result-item:hover {
+    background: var(--bg-card-hover);
+}
+
+.search-result-item .user-username {
+    flex: 1;
 }
 
 .btn-mini {
+    background: rgba(0, 255, 245, 0.1);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.btn-mini:hover {
     background: var(--primary);
     color: var(--bg-dark);
-    border: none;
-    padding: 0.3rem 0.8rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
 }
 
 .member-item {
-    pointer-events: none;
+    display: flex;
+    justify-content: space-between;
+}
+
+.member-details {
+    flex: 1;
+}
+
+.user-role {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.user-role.admin {
+    color: var(--warning);
+    font-weight: 700;
+}
+
+.member-actions {
+    display: flex;
+    align-items: center;
+}
+
+.remove-member-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.remove-member-btn:hover {
+    background: rgba(255, 51, 102, 0.1);
+    color: var(--error);
+    border-color: var(--error);
+}
+
+.remove-member-btn.leave:hover {
+    background: rgba(255, 170, 0, 0.1);
+    color: var(--warning);
+    border-color: var(--warning);
+}
+
+.remove-member-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .user-avatar.small {

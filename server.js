@@ -438,20 +438,26 @@ app.get('/api/users', authenticateToken, requireNoAdmin, (req, res) => {
 // Search users
 app.get('/api/users/search', authenticateToken, requireNoAdmin, (req, res) => {
     const query = req.query.q;
+    const excludeGroupId = req.query.excludeGroupId;
     if (!query) return res.json([]);
 
-    db.all(
-        `SELECT id, username, public_key, avatar FROM users 
-         WHERE id != ? AND username LIKE ? AND is_admin = 0 AND is_banned = 0
-         LIMIT 20`,
-        [req.user.id, `%${query}%`],
-        (err, users) => {
-            if (err) {
-                return res.status(500).json({ error: 'Failed to search users' });
-            }
-            res.json(users);
+    let sql = `SELECT id, username, public_key, avatar FROM users 
+               WHERE id != ? AND username LIKE ? AND is_admin = 0 AND is_banned = 0`;
+    let params = [req.user.id, `%${query}%`];
+
+    if (excludeGroupId) {
+        sql += ` AND id NOT IN (SELECT user_id FROM group_members WHERE group_id = ?)`;
+        params.push(excludeGroupId);
+    }
+
+    sql += ` LIMIT 20`;
+
+    db.all(sql, params, (err, users) => {
+        if (err) {
+            return res.status(500).json({ error: 'Failed to search users' });
         }
-    );
+        res.json(users);
+    });
 });
 
 // Get recent chats with unread counts
@@ -758,6 +764,42 @@ app.post('/api/groups/:id/members', authenticateToken, (req, res) => {
                 return res.status(500).json({ error: 'Failed to add member' });
             }
             res.json({ message: 'Member added successfully' });
+        }
+    );
+});
+
+// Remove user from group (Kick) or Leave group
+app.delete('/api/groups/:id/members/:userId', authenticateToken, (req, res) => {
+    const groupId = req.params.id;
+    const targetUserId = parseInt(req.params.userId);
+    const requesterId = req.user.id;
+
+    db.get('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, requesterId],
+        (err, requesterRow) => {
+            if (err) return res.status(500).json({ error: 'Database error' });
+            if (!requesterRow) return res.status(403).json({ error: 'You are not a member of this group' });
+
+            const isLeave = requesterId === targetUserId;
+            const isAdmin = requesterRow.role === 'admin';
+
+            if (!isLeave && !isAdmin) {
+                return res.status(403).json({ error: 'Only group admins can remove members' });
+            }
+
+            db.run('DELETE FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, targetUserId], (err) => {
+                if (err) return res.status(500).json({ error: 'Failed to remove member' });
+
+                // Check if any members left
+                db.get('SELECT COUNT(*) as memberCount FROM group_members WHERE group_id = ?', [groupId], (err, row) => {
+                    if (!err && row.memberCount === 0) {
+                        db.run('DELETE FROM groups WHERE id = ?', [groupId]);
+                        db.run('DELETE FROM group_messages WHERE group_id = ?', [groupId]);
+                    }
+                });
+
+                res.json({ message: isLeave ? 'Left group successfully' : 'Member removed successfully' });
+            });
         }
     );
 });

@@ -1228,22 +1228,108 @@ function displayGroupMembers(members) {
     const list = document.getElementById('groupMembersList');
     list.innerHTML = '';
 
+    const currentUserId = parseInt(localStorage.getItem('userId'));
+    const currentUserMember = members.find(m => m.id === currentUserId);
+    const isAdmin = currentUserMember && currentUserMember.role === 'admin';
+
     members.forEach(member => {
         const item = document.createElement('div');
         item.className = 'user-item member-item';
 
         const avatar = document.createElement('div');
         avatar.className = 'user-avatar small';
-        avatar.textContent = (member.username || '?').charAt(0).toUpperCase();
+        if (member.avatar) {
+            avatar.innerHTML = `<img src="${member.avatar}">`;
+        } else {
+            avatar.textContent = (member.username || '?').charAt(0).toUpperCase();
+        }
+
+        const details = document.createElement('div');
+        details.className = 'member-details';
 
         const name = document.createElement('div');
         name.className = 'user-username';
-        name.textContent = `${member.username} (${member.role})`;
+        name.textContent = member.username;
+
+        const role = document.createElement('div');
+        role.className = 'user-role';
+        role.textContent = member.role;
+        if (member.role === 'admin') role.classList.add('admin');
+
+        details.appendChild(name);
+        details.appendChild(role);
 
         item.appendChild(avatar);
-        item.appendChild(name);
+        item.appendChild(details);
+
+        const actions = document.createElement('div');
+        actions.className = 'member-actions';
+
+        if (member.id === currentUserId) {
+            const leaveBtn = document.createElement('button');
+            leaveBtn.className = 'remove-member-btn leave';
+            leaveBtn.title = 'Leave Group';
+            leaveBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+            `;
+            leaveBtn.onclick = () => removeMemberFromGroup(member.id, member.username, true);
+            actions.appendChild(leaveBtn);
+        } else if (isAdmin) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-member-btn';
+            removeBtn.title = 'Remove Member';
+            removeBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            `;
+            removeBtn.onclick = () => removeMemberFromGroup(member.id, member.username, false);
+            actions.appendChild(removeBtn);
+        }
+
+        item.appendChild(actions);
         list.appendChild(item);
     });
+}
+
+async function removeMemberFromGroup(userId, username, isLeave = false) {
+    if (!currentChatUser) return;
+
+    const confirmMsg = isLeave ?
+        'Are you sure you want to leave this group?' :
+        `Are you sure you want to remove ${username} from the group?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const response = await fetch(`/api/groups/${currentChatUser.id}/members/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.ok) {
+            if (isLeave) {
+                closeChat();
+                loadGroups();
+                closeGroupMembers();
+            } else {
+                loadGroupMembers();
+                // Optionally notify via socket if we had a member-removed event
+            }
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Operation failed');
+        }
+    } catch (error) {
+        console.error('Failed to remove member:', error);
+    }
 }
 
 // Member search logic (moved to initialization)
@@ -1259,7 +1345,7 @@ async function setupMemberSearch() {
         }
 
         try {
-            const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+            const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&excludeGroupId=${currentChatUser.id}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -1288,14 +1374,30 @@ function displayMemberSearchResults(users) {
         const item = document.createElement('div');
         item.className = 'search-result-item';
 
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar small';
+        if (user.avatar) {
+            avatar.innerHTML = `<img src="${user.avatar}">`;
+        } else {
+            avatar.textContent = user.username.charAt(0).toUpperCase();
+        }
+
         const nameSpan = document.createElement('span');
+        nameSpan.className = 'user-username';
         nameSpan.textContent = user.username;
 
         const addBtn = document.createElement('button');
         addBtn.className = 'btn-mini';
-        addBtn.textContent = 'Add';
+        addBtn.innerHTML = `
+            <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add
+        `;
         addBtn.onclick = () => addMemberToGroup(user.id, user.username, user.public_key);
 
+        item.appendChild(avatar);
         item.appendChild(nameSpan);
         item.appendChild(addBtn);
         results.appendChild(item);
