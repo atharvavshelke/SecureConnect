@@ -145,7 +145,7 @@ db.serialize(() => {
             db.run("ALTER TABLE group_members ADD COLUMN encrypted_group_key TEXT", (err) => {
                 // Ignore error if column already exists
             });
-            db.run("ALTER TABLE group_members ADD COLUMN last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
+            db.run("ALTER TABLE group_members ADD COLUMN last_read_at DATETIME DEFAULT '2026-01-01 00:00:00'", (err) => {
                 // Ignore error if column already exists
             });
         }
@@ -701,18 +701,29 @@ app.post('/api/groups', authenticateToken, (req, res) => {
     const { name, description, encryptedGroupKey } = req.body;
     if (!name) return res.status(400).json({ error: 'Group name is required' });
 
+    console.log('Group creation request:', { name, description, userId: req.user.id });
+
     db.serialize(() => {
         db.run('INSERT INTO groups (name, description, created_by) VALUES (?, ?, ?)',
             [name, description, req.user.id],
             function (err) {
-                if (err) return res.status(500).json({ error: 'Failed to create group' });
+                if (err) {
+                    console.error('Error creating group (INSERT INTO groups):', err);
+                    return res.status(500).json({ error: 'Failed to create group' });
+                }
 
                 const groupId = this.lastID;
+                console.log('Group created with ID:', groupId);
+
                 // Add creator as member with their encrypted version of the group key
                 db.run('INSERT INTO group_members (group_id, user_id, role, encrypted_group_key) VALUES (?, ?, ?, ?)',
                     [groupId, req.user.id, 'admin', encryptedGroupKey],
                     (err) => {
-                        if (err) return res.status(500).json({ error: 'Failed to add creator to group' });
+                        if (err) {
+                            console.error('Error adding creator to group (INSERT INTO group_members):', err);
+                            return res.status(500).json({ error: 'Failed to add creator to group' });
+                        }
+                        console.log('Creator added to group_members successfully');
                         res.json({ id: groupId, name, description });
                     }
                 );
