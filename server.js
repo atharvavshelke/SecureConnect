@@ -160,7 +160,7 @@ db.serialize(() => {
     )`);
 
     // Create default admin user if not exists
-    db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
+    db.get("SELECT * FROM users WHERE LOWER(username) = 'admin'", (err, row) => {
         if (!row) {
             const hashedPassword = bcrypt.hashSync(ADMIN_PASSWORD, 10);
             db.run(
@@ -168,6 +168,9 @@ db.serialize(() => {
                 ['admin', hashedPassword, 'admin@secureconnect.local', 999999, 1]
             );
             console.log('Default admin account created - Username: admin, Password: admin123');
+        } else if (row.username !== 'admin') {
+            // Standardize existing admin username to lowercase
+            db.run("UPDATE users SET username = 'admin' WHERE id = ?", [row.id]);
         }
     });
 });
@@ -307,7 +310,8 @@ app.post('/api/register', async (req, res) => {
 
 // User login
 app.post('/api/login', (req, res) => {
-    const { username, password, forceLogin } = req.body;
+    let { username, password, forceLogin } = req.body;
+    if (username) username = username.toLowerCase();
 
     db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
         if (err || !user) {
@@ -420,7 +424,7 @@ app.post('/api/user/avatar', authenticateToken, requireNoAdmin, upload.single('a
 // Get all users (for chat)
 app.get('/api/users', authenticateToken, requireNoAdmin, (req, res) => {
     db.all(
-        'SELECT id, username, public_key, avatar FROM users WHERE id != ? AND is_admin = 0',
+        'SELECT id, username, public_key, avatar FROM users WHERE id != ? AND is_admin = 0 AND is_banned = 0',
         [req.user.id],
         (err, users) => {
             if (err) {
@@ -438,7 +442,7 @@ app.get('/api/users/search', authenticateToken, requireNoAdmin, (req, res) => {
 
     db.all(
         `SELECT id, username, public_key, avatar FROM users 
-         WHERE id != ? AND username LIKE ? AND is_admin = 0
+         WHERE id != ? AND username LIKE ? AND is_admin = 0 AND is_banned = 0
          LIMIT 20`,
         [req.user.id, `%${query}%`],
         (err, users) => {
@@ -464,7 +468,7 @@ app.get('/api/chats', authenticateToken, requireNoAdmin, (req, res) => {
             SUM(CASE WHEN m.to_user = ? AND m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
         FROM users u
         JOIN messages m ON (m.from_user = u.id AND m.to_user = ?) OR (m.from_user = ? AND m.to_user = u.id)
-        WHERE u.id != ? AND u.is_admin = 0
+        WHERE u.id != ? AND u.is_admin = 0 AND u.is_banned = 0
         GROUP BY u.id
         ORDER BY unread_count DESC, last_message_time DESC
     `;

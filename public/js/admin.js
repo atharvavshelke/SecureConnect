@@ -359,7 +359,19 @@ async function deleteUser(userId) {
     }
 }
 
-function logout() {
+async function logout() {
+    if (adminToken) {
+        try {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`
+                }
+            });
+        } catch (e) {
+            console.error('Logout failed', e);
+        }
+    }
     localStorage.removeItem('admin_token');
     window.location.reload();
 }
