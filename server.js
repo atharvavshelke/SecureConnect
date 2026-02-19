@@ -59,7 +59,7 @@ db.serialize(() => {
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        credits INTEGER DEFAULT 0,
+        credits INTEGER DEFAULT 500,
         public_key TEXT,
         encrypted_private_key TEXT,
         is_logged_in INTEGER DEFAULT 0,
@@ -207,7 +207,7 @@ app.post('/api/register', async (req, res) => {
 
         db.run(
             'INSERT INTO users (username, password, email, public_key, encrypted_private_key, credits, is_logged_in) VALUES (?, ?, ?, ?, ?, ?, 1)',
-            [username, hashedPassword, email, publicKey, encryptedPrivateKey, 10], // 10 free credits, auto-login
+            [username, hashedPassword, email, publicKey, encryptedPrivateKey, 500], // 500 free credits, auto-login
             function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE')) {
