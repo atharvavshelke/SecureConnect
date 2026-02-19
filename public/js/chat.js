@@ -243,6 +243,7 @@ function displayUsers() {
 
     if (allUsers.length === 0) {
         usersList.innerHTML = '<div class="loading">No chats yet. Search to find users.</div>';
+        updateListCount(0);
         return;
     }
 
@@ -294,6 +295,8 @@ function displayUsers() {
         usersList.appendChild(userItem);
     });
 
+    updateListCount(allUsers.length);
+
     // Refresh online status
     updateOnlineStatus(onlineUsers);
 }
@@ -303,6 +306,7 @@ function displaySearchResults(results, query) {
 
     if (results.length === 0) {
         usersList.innerHTML = `<div class="loading">No users found for "${query}"</div>`;
+        updateListCount(0);
         return;
     }
 
@@ -335,10 +339,19 @@ function displaySearchResults(results, query) {
         userItem.appendChild(details);
         usersList.appendChild(userItem);
     });
+
+    updateListCount(results.length);
+}
+
+function updateListCount(count) {
+    const onlineCountElement = document.getElementById('onlineCount');
+    if (onlineCountElement) {
+        onlineCountElement.textContent = count;
+    }
 }
 
 function updateOnlineStatus(onlineUserIds) {
-    document.getElementById('onlineCount').textContent = onlineUserIds.length;
+    // Online count is no longer shown globally in the header, now per list item
 
     // Update status dots
     document.querySelectorAll('.status-dot').forEach(dot => {
