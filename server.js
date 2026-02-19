@@ -169,12 +169,20 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
+// User-only middleware (no admins allowed)
+const requireNoAdmin = (req, res, next) => {
+    if (req.user.isAdmin) {
+        return res.status(403).json({ error: 'This feature is not available for admin accounts' });
+    }
+    next();
+};
+
 // Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/chat', authenticateToken, (req, res) => {
+app.get('/chat', authenticateToken, requireNoAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
@@ -188,6 +196,10 @@ app.post('/api/register', async (req, res) => {
 
     if (!username || !password || !email) {
         return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    if (username.toLowerCase().includes('admin')) {
+        return res.status(400).json({ error: 'Username "admin" is reserved' });
     }
 
     try {
@@ -283,7 +295,7 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
 });
 
 // Sync private key (for existing users or re-sync)
-app.post('/api/user/sync-key', authenticateToken, (req, res) => {
+app.post('/api/user/sync-key', authenticateToken, requireNoAdmin, (req, res) => {
     const { encryptedPrivateKey } = req.body;
     if (!encryptedPrivateKey) {
         return res.status(400).json({ error: 'No key provided' });
@@ -315,7 +327,7 @@ app.get('/api/user/me', authenticateToken, (req, res) => {
 });
 
 // Upload avatar
-app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), (req, res) => {
+app.post('/api/user/avatar', authenticateToken, requireNoAdmin, upload.single('avatar'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -335,9 +347,9 @@ app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), (req, r
 });
 
 // Get all users (for chat)
-app.get('/api/users', authenticateToken, (req, res) => {
+app.get('/api/users', authenticateToken, requireNoAdmin, (req, res) => {
     db.all(
-        'SELECT id, username, public_key, avatar FROM users WHERE id != ?',
+        'SELECT id, username, public_key, avatar FROM users WHERE id != ? AND is_admin = 0',
         [req.user.id],
         (err, users) => {
             if (err) {
@@ -349,13 +361,13 @@ app.get('/api/users', authenticateToken, (req, res) => {
 });
 
 // Search users
-app.get('/api/users/search', authenticateToken, (req, res) => {
+app.get('/api/users/search', authenticateToken, requireNoAdmin, (req, res) => {
     const query = req.query.q;
     if (!query) return res.json([]);
 
     db.all(
         `SELECT id, username, public_key, avatar FROM users 
-         WHERE id != ? AND username LIKE ? 
+         WHERE id != ? AND username LIKE ? AND is_admin = 0
          LIMIT 20`,
         [req.user.id, `%${query}%`],
         (err, users) => {
@@ -368,7 +380,7 @@ app.get('/api/users/search', authenticateToken, (req, res) => {
 });
 
 // Get recent chats with unread counts
-app.get('/api/chats', authenticateToken, (req, res) => {
+app.get('/api/chats', authenticateToken, requireNoAdmin, (req, res) => {
     const currentUserId = req.user.id;
 
     const sql = `
@@ -381,7 +393,7 @@ app.get('/api/chats', authenticateToken, (req, res) => {
             SUM(CASE WHEN m.to_user = ? AND m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
         FROM users u
         JOIN messages m ON (m.from_user = u.id AND m.to_user = ?) OR (m.from_user = ? AND m.to_user = u.id)
-        WHERE u.id != ?
+        WHERE u.id != ? AND u.is_admin = 0
         GROUP BY u.id
         ORDER BY unread_count DESC, last_message_time DESC
     `;
@@ -396,7 +408,7 @@ app.get('/api/chats', authenticateToken, (req, res) => {
 });
 
 // Get chat history with a specific user
-app.get('/api/messages/:userId', authenticateToken, (req, res) => {
+app.get('/api/messages/:userId', authenticateToken, requireNoAdmin, (req, res) => {
     const otherUserId = req.params.userId;
     const currentUserId = req.user.id;
 
@@ -440,7 +452,7 @@ app.get('/api/messages/:userId', authenticateToken, (req, res) => {
 });
 
 // Request credits
-app.post('/api/credits/request', authenticateToken, (req, res) => {
+app.post('/api/credits/request', authenticateToken, requireNoAdmin, (req, res) => {
     const { amount, transactionRef } = req.body;
 
     if (!amount || amount <= 0) {
@@ -463,7 +475,7 @@ app.post('/api/credits/request', authenticateToken, (req, res) => {
 });
 
 // Get user's credit transactions
-app.get('/api/credits/transactions', authenticateToken, (req, res) => {
+app.get('/api/credits/transactions', authenticateToken, requireNoAdmin, (req, res) => {
     db.all(
         'SELECT * FROM credit_transactions WHERE user_id = ? ORDER BY created_at DESC',
         [req.user.id],
@@ -586,12 +598,14 @@ io.on('connection', (socket) => {
             const verified = jwt.verify(token, JWT_SECRET);
             socket.userId = verified.id;
             socket.username = verified.username;
+            socket.isAdmin = verified.isAdmin; // Store admin status
             connectedUsers.set(verified.id, socket.id);
 
-            socket.emit('authenticated', { userId: verified.id, username: verified.username });
-
-            // Broadcast online users
-            io.emit('users-online', Array.from(connectedUsers.keys()));
+            // Broadcast online users (filter out admins)
+            const onlineUsers = Array.from(io.sockets.sockets.values())
+                .filter(s => s.userId && !s.isAdmin)
+                .map(s => s.userId);
+            io.emit('users-online', onlineUsers);
         } catch (err) {
             socket.emit('auth-error', 'Invalid token');
         }
@@ -602,6 +616,10 @@ io.on('connection', (socket) => {
 
         if (!socket.userId) {
             return socket.emit('message-error', 'Not authenticated');
+        }
+
+        if (socket.isAdmin) {
+            return socket.emit('message-error', 'Admin accounts cannot send messages');
         }
 
         // Deduct credit
@@ -644,7 +662,10 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (socket.userId) {
             connectedUsers.delete(socket.userId);
-            io.emit('users-online', Array.from(connectedUsers.keys()));
+            const onlineUsers = Array.from(io.sockets.sockets.values())
+                .filter(s => s.userId && !s.isAdmin)
+                .map(s => s.userId);
+            io.emit('users-online', onlineUsers);
         }
         console.log('Client disconnected');
     });
