@@ -1107,7 +1107,34 @@ async function startVoiceCall() {
         callStatus.textContent = 'Calling...';
         answerBtn.classList.add('hidden');
 
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!window.RTCPeerConnection) {
+            alert('Your browser does not support WebRTC (calling feature).');
+            isCalling = false;
+            callOverlay.classList.add('hidden');
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            if (window.isSecureContext === false) {
+                alert('Call feature requires a secure connection (HTTPS or localhost). Please access the site via HTTPS.');
+            } else {
+                alert('Your browser does not support microphone access.');
+            }
+            isCalling = false;
+            callOverlay.classList.add('hidden');
+            return;
+        }
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert('Microphone access denied. Please allow microphone permissions in your browser settings.');
+            } else {
+                alert('Could not access microphone: ' + err.message);
+            }
+            throw err;
+        }
 
         peerConnection = new RTCPeerConnection(configuration);
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -1139,7 +1166,9 @@ async function startVoiceCall() {
 
     } catch (error) {
         console.error('Call failed:', error);
-        alert('Could not start call. Check microphone permissions.');
+        if (error.name !== 'NotAllowedError' && error.name !== 'PermissionDeniedError' && !error.message.includes('secure connection')) {
+            alert('Could not start call: ' + error.message);
+        }
         endCall();
     }
 }
@@ -1153,7 +1182,32 @@ async function answerCall() {
         answerBtn.classList.add('hidden');
         document.getElementById('callStatus').textContent = 'Connecting...';
 
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!window.RTCPeerConnection) {
+            alert('Could not answer call: Your browser does not support WebRTC.');
+            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false });
+            endCall();
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Could not answer call: Secure connection (HTTPS) required for microphone access.');
+            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false });
+            endCall();
+            return;
+        }
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert('Microphone access denied. Please allow microphone permissions in your browser settings.');
+            } else {
+                alert('Could not access microphone: ' + err.message);
+            }
+            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false });
+            endCall();
+            return;
+        }
 
         peerConnection = new RTCPeerConnection(configuration);
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));

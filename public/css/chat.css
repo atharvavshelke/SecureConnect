@@ -800,6 +800,98 @@ body {
     align-items: center;
 }
 
+/* Calling Overlay Styles */
+.call-content {
+    background: var(--bg-card);
+    padding: 3rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid var(--primary);
+    box-shadow: 0 0 50px rgba(0, 255, 245, 0.2);
+    width: 90%;
+    max-width: 400px;
+}
+
+.call-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    margin: 0 auto 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--bg-dark);
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.4);
+}
+
+.call-content h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.call-status {
+    color: var(--primary);
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+}
+
+.call-timer {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.call-actions-overlay {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+}
+
+.call-action-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.call-action-btn svg {
+    width: 24px;
+    height: 24px;
+}
+
+.call-action-btn.answer {
+    background: var(--success);
+    color: var(--bg-dark);
+}
+
+.call-action-btn.answer:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px var(--success);
+}
+
+.call-action-btn.hangup {
+    background: var(--error);
+    color: var(--text-primary);
+}
+
+.call-action-btn.hangup:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px var(--error);
+}
+
 .transaction-info {
     display: flex;
     flex-direction: column;
