@@ -56,14 +56,17 @@ async function logout() {
 
 
 // Login form handler
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+const loginForm = document.getElementById('loginForm');
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-    const username = document.getElementById('loginUsername').value.trim();
-    const password = document.getElementById('loginPassword').value;
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
 
-    await performLogin(username, password);
-});
+        await performLogin(username, password);
+    });
+}
 
 async function performLogin(username, password, forceLogin = false) {
     try {
@@ -140,95 +143,98 @@ async function performLogin(username, password, forceLogin = false) {
 }
 
 // Register form handler
-document.getElementById('registerForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+const registerForm = document.getElementById('registerForm');
+if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-    const username = document.getElementById('registerUsername').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value;
+        const username = document.getElementById('registerUsername').value.trim();
+        const email = document.getElementById('registerEmail').value.trim();
+        const password = document.getElementById('registerPassword').value;
 
-    // Frontend Validation
-    const usernameRegex = /^[a-z0-9]{5,32}$/;
-    if (!usernameRegex.test(username)) {
-        showError('registerError', 'Username must be lowercase alphanumeric and between 5-32 characters long');
-        return;
-    }
-
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email) || email.includes('+')) {
-        showError('registerError', 'Please provide a valid email without plus-addressing (e.g., +test is not allowed)');
-        return;
-    }
-
-    const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
-    if (!passwordRegex.test(password)) {
-        showError('registerError', 'Password must be at least 8 characters, with one uppercase letter and one special character');
-        return;
-    }
-
-    try {
-        // Update status
-        const statusText = document.querySelector('#registerCard .status-text');
-        statusText.textContent = 'Generating encryption keys...';
-
-        // Generate encryption keys
-        const publicKey = await secureEncryption.generateKeyPair();
-
-        // Encrypt private key with password
-        statusText.textContent = 'Encrypting keys...';
-        const encryptedPrivateKey = await secureEncryption.encryptPrivateKeyWithPassword(password);
-
-        // Store private key locally for this user
-        secureEncryption.storeKeys(username);
-
-        statusText.textContent = 'Creating account...';
-
-        // Register user
-        const response = await fetch('/api/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username,
-                email,
-                password,
-                publicKey,
-                encryptedPrivateKey
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            // Store token
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('userId', data.userId);
-            localStorage.setItem('username', data.username);
-
-            // Show success message
-            statusText.textContent = 'Account created! Redirecting...';
-
-            // Redirect to chat
-            setTimeout(() => {
-                window.location.href = '/chat';
-            }, 1000);
-        } else {
-            statusText.textContent = 'Generating Keys...';
-            showError('registerError', data.error || 'Registration failed');
+        // Frontend Validation
+        const usernameRegex = /^[a-z0-9]{5,32}$/;
+        if (!usernameRegex.test(username)) {
+            showError('registerError', 'Username must be lowercase alphanumeric and between 5-32 characters long');
+            return;
         }
-    } catch (error) {
-        console.error('Registration error:', error);
-        const statusText = document.querySelector('#registerCard .status-text');
-        statusText.textContent = 'Generating Keys...';
-        showError('registerError', 'Connection error. Please try again.');
-    }
-});
+
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(email) || email.includes('+')) {
+            showError('registerError', 'Please provide a valid email without plus-addressing (e.g., +test is not allowed)');
+            return;
+        }
+
+        const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+        if (!passwordRegex.test(password)) {
+            showError('registerError', 'Password must be at least 8 characters, with one uppercase letter and one special character');
+            return;
+        }
+
+        try {
+            // Update status
+            const statusText = document.querySelector('#registerCard .status-text');
+            statusText.textContent = 'Generating encryption keys...';
+
+            // Generate encryption keys
+            const publicKey = await secureEncryption.generateKeyPair();
+
+            // Encrypt private key with password
+            statusText.textContent = 'Encrypting keys...';
+            const encryptedPrivateKey = await secureEncryption.encryptPrivateKeyWithPassword(password);
+
+            // Store private key locally for this user
+            secureEncryption.storeKeys(username);
+
+            statusText.textContent = 'Creating account...';
+
+            // Register user
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username,
+                    email,
+                    password,
+                    publicKey,
+                    encryptedPrivateKey
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Store token
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userId', data.userId);
+                localStorage.setItem('username', data.username);
+
+                // Show success message
+                statusText.textContent = 'Account created! Redirecting...';
+
+                // Redirect to chat
+                setTimeout(() => {
+                    window.location.href = '/chat';
+                }, 1000);
+            } else {
+                statusText.textContent = 'Generating Keys...';
+                showError('registerError', data.error || 'Registration failed');
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            const statusText = document.querySelector('#registerCard .status-text');
+            statusText.textContent = 'Generating Keys...';
+            showError('registerError', 'Connection error. Please try again.');
+        }
+    });
+}
 
 // Check if already logged in
 const token = localStorage.getItem('token');
 const savedUsername = localStorage.getItem('username');
-if (token && window.location.pathname === '/' && savedUsername) {
+if (token && (window.location.pathname === '/' || window.location.pathname === '/login') && savedUsername) {
     // Verify token is still valid
     fetch('/api/user/me', {
         headers: {

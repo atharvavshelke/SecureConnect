@@ -241,6 +241,10 @@ app.get('/chat', authenticateToken, requireNoAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
 app.get('/admin-panel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
