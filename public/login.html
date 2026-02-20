@@ -5,7 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureConnect - Login</title>
+    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/theme.js"></script>
     <link
         href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap"
         rel="stylesheet">
@@ -28,7 +30,14 @@
                     <span class="logo-text">SecureConnect</span>
                 </a>
             </div>
-            <div class="header-badge">Terminal Access</div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+                <div class="header-badge">Terminal Access</div>
+            </div>
         </header>
 
         <main class="main-content" style="display: flex; justify-content: center; width: 100%;">
