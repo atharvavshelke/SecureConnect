@@ -1,339 +1,107 @@
-# SecureConnect
-
-**End-to-End Encrypted Chat Application with Credit-Based Messaging System**
-
-SecureConnect is a secure, real-time chat application featuring military-grade end-to-end encryption, a credit-based messaging system, and manual payment verification through an admin panel.
-
-![SecureConnect](https://img.shields.io/badge/Encryption-E2E-00fff5)
-![License](https://img.shields.io/badge/License-MIT-blue)
-![Node](https://img.shields.io/badge/Node.js-20.x-green)
-
----
-
-## Features
-
-### 🔐 Security
-- **End-to-End Encryption:** RSA-2048 + AES-256-GCM
-- **Zero-Knowledge Architecture:** Server cannot read messages
-- **Client-Side Key Generation:** Encryption keys never leave the browser
-- **JWT Authentication:** Secure token-based auth
-- **Password Hashing:** bcrypt with salt rounds
-
-### 💬 Chat & Calls
-- **Real-Time Messaging:** WebSocket-based instant communication
-- **Private & Group Voice Calls:** WebRTC peer-to-peer audio calls with Mesh Networking for groups
-- **Group Chats:** End-to-end encrypted multi-user group conversations
-- **Online Status:** See who's available
-- **Message History:** Encrypted message storage
-- **User Discovery:** Browse all registered users
-
-### 💳 Credit System
-- **Pay-Per-Message:** 1 credit per message
-- **Free Trial:** 10 credits included on registration
-- **Manual Verification:** Admin approves credit purchases
-- **Transaction History:** Track all credit requests
-
-### 👨‍💼 Admin Panel
-- **Transaction Management:** Review and approve credit purchases
-- **User Overview:** Monitor all registered users
-- **Real-Time Updates:** Live transaction notifications
-- **Secure Access:** Admin-only authentication
+<div align="center">
+  <img src="https://img.shields.io/badge/Military--Grade%20Encryption-00FF41?style=for-the-badge&logo=shield&logoColor=black" alt="Encryption Badge" />
+  <img src="https://img.shields.io/badge/WebRTC%20Audio%20Calls-00FF41?style=for-the-badge&logo=webrtc&logoColor=black" alt="WebRTC Badge" />
+  
+  <h1>🛡️ SecureConnect</h1>
+  <p><strong>A Next-Generation, End-to-End Encrypted Communication Platform</strong></p>
+  <p>SecureConnect is a cyberpunk-themed, zero-knowledge chat and voice calling application built for absolute privacy. No one reads your messages. No one listens to your calls. Not even the server.</p>
+</div>
 
 ---
 
-## Technology Stack
+## 🚀 Key Features
 
-- **Backend:** Node.js, Express
-- **WebSocket:** Socket.io
-- **Database:** SQLite
-- **Encryption:** Web Crypto API
+### � Absolute Privacy (E2EE)
+- **Zero-Knowledge Architecture:** The server operates strictly as a blind relay. Only the sender and recipient have the keys to unlock messages.
+- **Client-Side Cryptography:** RSA-OAEP (2048-bit) for secure key exchange, and AES-GCM (256-bit) for ultra-fast message encryption. All keys are generated directly in your browser.
+- **Hardened Key Derivation:** PBKDF2 with 600,000 iterations protects your locally-stored private keys from offline cracking.
+
+### 💬 Next-Gen Communication
+- **Real-Time Stealth Chat:** Lightning-fast, WebSocket-driven instant messaging.
+- **Encrypted Voice Calls:** Peer-to-peer WebRTC audio calls seamlessly integrated entirely within the browser.
+- **Group Mesh Networking:** Encrypted multi-user group chats and voice calls powered by decentralized WebRTC meshing.
+
+### 💳 Built-In Economy
+- **Credit Protocol:** 1 Message = 1 Credit. Every account starts with 10 free credits to test the waters.
+- **Admin Verification Panel:** Secure backend dashboard to manually verify external fund transfers before dispersing credits.
+
+### �️ Iron-Clad Server Security
+- **Rate-Limiting Matrix:** Brute-force and credential stuffing attacks are stopped dead by progressive IP-based rate limiters on authentication endpoints.
+- **Strict Headers & Cookies:** Built with Helmet.js to enforce strict HTTP security policies and `SameSite: strict` token cookies to eradicate CSRF vulnerabilities.
+
+---
+
+## 💻 Tech Stack
+
+- **Backend Network:** Node.js, Express.js
+- **Real-Time Relay:** Socket.io, WebRTC
+- **Datastore:** SQLite3
+- **Crypto Engine:** Native Web Crypto API
 - **Authentication:** JWT, bcryptjs
-- **Frontend:** Vanilla JavaScript, HTML5, CSS3
+- **Frontend Matrix:** Vanilla HTML5, CSS3 (Glassmorphism), JavaScript
 
 ---
 
-## Quick Start
+## 🛠️ Quick Start
 
-### Prerequisites
-- Node.js 20.x or higher
-- npm 10.x or higher
+### 1. Requirements
+- Node.js `20.x` or higher
+- npm `10.x` or higher
+- A modern browser with WebRTC and Web Crypto API support
 
-### Installation
+### 2. Initialization
 
 ```bash
-# Clone or download the repository
-cd secureconnect
+# Clone the repository
+git clone https://github.com/atharvavshelke/SecureConnect.git
+cd SecureConnect
 
-# Install dependencies
+# Install server dependencies
 npm install
 
-# Start the server
-npm start
+# Boot the relay server
+node server.js
 ```
 
-### Access
-
-- **Application:** http://localhost:3000
-- **Admin Panel:** http://localhost:3000/admin-panel
-
-### Default Admin Credentials
-- Username: `admin`
-- Password: `admin123` (⚠️ Change this immediately!)
+### 3. Access the Matrix
+- **Main Terminal:** `http://localhost:3000`
+- **Admin Dashboard:** `http://localhost:3000/admin-panel`
+  - *Default login:* `admin` / `admin123` 
+  - *(⚠️ WARNING: Change this immediately by setting the `ADMIN_PASSWORD` environment variable)*
 
 ---
 
-## Deployment
+## 📸 The Interface
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed AWS EC2 deployment instructions.
+SecureConnect boasts a sleek, cyberpunk-inspired UI featuring deep blacks, neon green highlights (`#00ff41`), and dynamic glassmorphism to immerse you in the hacker aesthetic.
 
-### Quick Deploy
+*(Insert Screenshots Here)*
+
+---
+
+## 🌐 Deployment (Production)
+
+SecureConnect requires HTTPS/WSS to function in production (browsers block Web Crypto/WebRTC on insecure HTTP connections unless running on `localhost`).
 
 ```bash
-# On Ubuntu 24.04 LTS
-sudo apt update && sudo apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs build-essential
-sudo npm install -g pm2
-
-# Upload files and install
-cd secureconnect
-npm install
-
-# Start with PM2
-pm2 start server.js --name secureconnect
-pm2 startup
-pm2 save
+PORT=3000
+NODE_ENV=production
+JWT_SECRET=super_secret_hashing_string
+ADMIN_PASSWORD=your_secure_password
 ```
+For a detailed guide on setting up an Nginx reverse proxy with SSL on an AWS EC2 instance, refer to the included `DEPLOYMENT.md` guide.
 
 ---
 
-## Configuration
+## 📜 Legal & Disclaimer
 
-### Environment Variables (Optional)
+**SecureConnect is provided as-is for educational and research purposes.** 
 
-```bash
-PORT=3000                    # Server port
-NODE_ENV=production          # Environment
-```
+While the application utilizes industry-standard encryption protocols (RSA-2048, AES-256-GCM, WebRTC, PBKDF2), deploying a truly secure communication platform requires continuous security audits, secure server infrastructure, and a deep understanding of operational security (OPSEC). 
 
-### Security Configuration
-
-Edit `server.js` lines 15-17:
-
-```javascript
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'your-secure-random-string-' + Math.random();
-const ADMIN_PASSWORD = 'YourStrongPassword123!';
-```
-
-**⚠️ Important:** Always change the default admin password!
+The creators take no responsibility for data breaches or misuse of this software.
 
 ---
-
-## How It Works
-
-### Registration & Encryption
-
-1. User creates an account
-2. Browser generates RSA-2048 key pair
-3. Public key stored on server
-4. Private key stored in browser localStorage
-5. 10 free credits added to account
-
-### Sending Messages
-
-1. User types message
-2. Message encrypted with recipient's public key (AES-256-GCM)
-3. Encrypted message sent via WebSocket
-4. 1 credit deducted from sender
-5. Recipient decrypts with their private key
-
-### Credit Purchase
-
-1. User requests credits
-2. User makes payment externally
-3. User submits transaction reference
-4. Admin verifies payment
-5. Admin approves transaction
-6. Credits added to user account
-
----
-
-## API Endpoints
-
-### Authentication
-- `POST /api/register` - Create new account
-- `POST /api/login` - Login user
-- `GET /api/user/me` - Get current user info
-
-### Users
-- `GET /api/users` - Get all users (authenticated)
-
-### Credits
-- `POST /api/credits/request` - Request credit purchase
-- `GET /api/credits/transactions` - Get user's transactions
-
-### Admin
-- `GET /api/admin/transactions/pending` - Get pending transactions
-- `POST /api/admin/transactions/:id/approve` - Approve transaction
-- `POST /api/admin/transactions/:id/reject` - Reject transaction
-- `GET /api/admin/users` - Get all users
-
----
-
-## WebSocket Events
-
-### Client → Server
-- `authenticate` - Authenticate WebSocket connection
-- `send-message` - Send encrypted message
-
-### Server → Client
-- `authenticated` - Authentication confirmed
-- `receive-message` - New message received
-- `message-sent` - Message sent confirmation
-- `message-error` - Message sending error
-- `users-online` - Online users update
-
----
-
-## Database Schema
-
-### users
-```sql
-id, username, password, email, credits, public_key, is_admin, created_at
-```
-
-### messages
-```sql
-id, from_user, to_user, encrypted_content, created_at
-```
-
-### credit_transactions
-```sql
-id, user_id, amount, transaction_ref, status, created_at, approved_at
-```
-
----
-
-## Security Considerations
-
-### Client-Side
-- Private keys never leave the browser
-- All encryption happens in the browser
-- localStorage used for key storage (consider more secure alternatives)
-
-### Server-Side
-- Messages stored encrypted
-- Passwords hashed with bcrypt
-- JWT tokens for authentication (Strict SameSite cookies)
-- No plaintext message access
-- **Helmet HTTP Headers**: Protection against XSS, clickjacking, and MIME sniffing
-- **Rate-Limiting**: Progressive limits on authentication routes to prevent brute-forcing
-
-### Production Recommendations
-1. Use HTTPS/WSS (Required for WebRTC Audio Calls)
-2. Use secure key storage (Hardware Security Module)
-3. Implement key backup/recovery system
-4. Add two-factor authentication
-5. Regular security audits
-6. Database encryption at rest
-
----
-
-## Project Structure
-
-```
-secureconnect/
-├── server.js              # Main server file
-├── package.json           # Dependencies
-├── secureconnect.db      # SQLite database
-├── public/
-│   ├── index.html        # Landing/login page
-│   ├── chat.html         # Chat interface
-│   ├── css/
-│   │   ├── style.css     # Landing page styles
-│   │   ├── chat.css      # Chat styles
-│   │   └── admin.css     # Admin styles
-│   └── js/
-│       ├── crypto.js     # E2E encryption module
-│       ├── auth.js       # Authentication logic
-│       ├── chat.js       # Chat functionality
-│       └── admin.js      # Admin panel logic
-├── admin/
-│   └── admin.html        # Admin panel
-├── DEPLOYMENT.md         # Deployment guide
-└── README.md            # This file
-```
-
----
-
-## Browser Compatibility
-
-- Chrome 60+
-- Firefox 55+
-- Safari 11+
-- Edge 79+
-
-Requires:
-- Web Crypto API support
-- WebSocket support
-- LocalStorage support
-
----
-
-## Limitations
-
-1. **Key Recovery:** If user clears browser data, private key is lost
-2. **Single Device:** Keys stored per browser, not synced across devices
-3. **Manual Payments:** No automated payment gateway integration
-4. **SQLite:** Not recommended for high-concurrency production use
-5. **No File Sharing:** Text messages only
-
----
-
-## Future Enhancements
-
-- [ ] File and image encryption
-- [ ] Key backup and recovery system
-- [ ] Multi-device support
-- [ ] Automated payment gateway integration
-- [ ] Message read receipts
-- [ ] Typing indicators
-- [ ] Video calls
-- [ ] Mobile applications
-- [ ] Message expiration (self-destruct)
-
----
-
-## License
-
-MIT License - See LICENSE file for details
-
----
-
-## Disclaimer
-
-This application is provided as-is for educational purposes. While it implements strong encryption, additional security measures should be implemented for production use. Always conduct security audits and follow best practices when handling sensitive data.
-
----
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
----
-
-## Support
-
-For deployment issues, see [DEPLOYMENT.md](DEPLOYMENT.md)
-
-For security concerns, please report them privately.
-
----
-
-**Built with ❤️ for privacy and security**
+<div align="center">
+  <i>Stay Secure. Stay Hidden.</i>
+</div>
