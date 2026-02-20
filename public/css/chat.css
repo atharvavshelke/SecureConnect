@@ -52,11 +52,14 @@ body {
 
 /* Sidebar */
 .sidebar {
-    background: var(--bg-darker);
-    border-right: 1px solid var(--border);
+    background: rgba(5, 8, 16, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 5px 0 20px rgba(0, 0, 0, 0.3);
 }
 
 .sidebar-header {
@@ -149,10 +152,10 @@ body {
 
 .search-container input {
     width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    padding: 0.6rem 1rem;
+    background: rgba(19, 24, 35, 0.6);
+    border: 1px solid rgba(45, 55, 72, 0.5);
+    border-radius: 8px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
     font-size: 0.85rem;
@@ -162,7 +165,8 @@ body {
 .search-container input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(0, 255, 245, 0.1);
+    background: rgba(19, 24, 35, 0.9);
+    box-shadow: 0 0 0 3px rgba(0, 255, 245, 0.15), 0 0 10px rgba(0, 255, 245, 0.1) inset;
 }
 
 .online-count {
@@ -181,9 +185,10 @@ body {
 
 .user-item {
     padding: 0.875rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    background: rgba(19, 24, 35, 0.4);
+    border: 1px solid transparent;
+    border-left: 2px solid transparent;
+    border-radius: 8px;
     margin-bottom: 0.5rem;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -193,14 +198,17 @@ body {
 }
 
 .user-item:hover {
-    background: var(--bg-card-hover);
-    border-color: var(--primary);
+    background: rgba(26, 31, 46, 0.8);
+    border-left-color: var(--primary);
     transform: translateX(4px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .user-item.active {
-    background: var(--bg-card-hover);
-    border-color: var(--primary);
+    background: rgba(26, 31, 46, 0.9);
+    border-color: rgba(0, 255, 245, 0.2);
+    border-left: 3px solid var(--primary);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .user-avatar {
@@ -319,12 +327,16 @@ body {
 
 .chat-header {
     padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     gap: 1rem;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-darker);
+    background: rgba(5, 8, 16, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    z-index: 10;
 }
 
 /* Back button styles removed */
@@ -443,17 +455,29 @@ body {
 }
 
 .message-bubble {
-    padding: 0.875rem;
-    border-radius: 8px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    padding: 0.875rem 1.25rem;
+    border-radius: 12px;
+    background: rgba(19, 24, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     word-wrap: break-word;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    font-size: 0.95rem;
+    line-height: 1.5;
 }
 
 .message.sent .message-bubble {
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     color: var(--bg-dark);
     border-color: transparent;
+    box-shadow: 0 4px 15px rgba(0, 102, 255, 0.3), 0 2px 5px rgba(0, 255, 245, 0.4);
+    border-bottom-right-radius: 4px;
+    /* classic chat tail effect */
+}
+
+.message:not(.sent) .message-bubble {
+    border-bottom-left-radius: 4px;
 }
 
 .message-time {
@@ -463,10 +487,14 @@ body {
 }
 
 .message-input-container {
-    border-top: 1px solid var(--border);
-    background: var(--bg-darker);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(5, 8, 16, 0.8);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     padding: 1rem 1.5rem;
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    z-index: 10;
 }
 
 .cost-indicator {
@@ -491,10 +519,10 @@ body {
 
 .message-form input {
     flex: 1;
-    padding: 0.875rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    background: rgba(19, 24, 35, 0.6);
+    border: 1px solid rgba(45, 55, 72, 0.6);
+    border-radius: 24px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
     font-size: 16px;
@@ -505,26 +533,28 @@ body {
 .message-form input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(0, 255, 245, 0.1);
+    background: rgba(19, 24, 35, 0.9);
+    box-shadow: 0 0 0 4px rgba(0, 255, 245, 0.15), 0 0 15px rgba(0, 255, 245, 0.1) inset;
 }
 
 .send-btn {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     border: none;
-    border-radius: 4px;
+    border-radius: 50%;
     color: var(--bg-dark);
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 102, 255, 0.3);
 }
 
 .send-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(0, 255, 245, 0.4);
+    transform: scale(1.08) rotate(5deg);
+    box-shadow: 0 8px 25px rgba(0, 255, 245, 0.5), 0 0 15px rgba(0, 102, 255, 0.4);
 }
 
 .send-btn svg {
@@ -558,14 +588,17 @@ body {
 }
 
 .modal-content {
-    background: var(--bg-card);
-    border: 1px solid var(--border-bright);
-    border-radius: 8px;
+    background: rgba(19, 24, 35, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 245, 0.2);
+    border-radius: 16px;
     width: 90%;
     max-width: 800px;
     max-height: 90vh;
     overflow-y: auto;
-    animation: slideUp 0.3s ease;
+    animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 255, 245, 0.1);
 }
 
 @keyframes slideUp {
@@ -941,22 +974,31 @@ body {
     display: none !important;
 }
 
-/* Scrollbar */
+/* Custom Smooth Scrollbar */
 ::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--bg-darker);
+    background: transparent;
+    border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border-bright);
-    border-radius: 4px;
+    background: rgba(0, 255, 245, 0.3);
+    border-radius: 10px;
+    transition: background 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
+    background: rgba(0, 255, 245, 0.6);
+}
+
+/* Firefox scrollbar compatibility */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 255, 245, 0.3) transparent;
 }
 
 @media (max-width: 768px) {
