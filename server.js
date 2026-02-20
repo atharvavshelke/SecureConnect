@@ -10,6 +10,8 @@ const cookieParser = require('cookie-parser');
 
 const fs = require('fs');
 const multer = require('multer');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -45,8 +47,8 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'DRMldXqUB1ZAZXQjvKPR70073fAP5pSHEJsBBeucChjRkYirYAeKPHri9XD73fnUbMxkeUR487MHylj5xTk40CBHp0G54eXH2WIUhcrnJnGTCLcpljd9ZlUjIEATzS6b' + Math.random();
-const ADMIN_PASSWORD = 'Password@2026'; // Change this!
+const JWT_SECRET = process.env.JWT_SECRET || 'DRMldXqUB1ZAZXQjvKPR70073fAP5pSHEJsBBeucChjRkYirYAeKPHri9XD73fnUbMxkeUR487MHylj5xTk40CBHp0G54eXH2WIUhcrnJnGTCLcpljd9ZlUjIEATzS6b' + Math.random();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Password@2026';
 
 // Database setup
 const db = new sqlite3.Database('./secureconnect.db');
@@ -179,6 +181,9 @@ db.serialize(() => {
 });
 
 // Middleware
+app.use(helmet({
+    contentSecurityPolicy: false // Disable CSP for now as our inline scripts/styles would break without nonce/hashes
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -186,11 +191,20 @@ app.use(session({
     secret: JWT_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 }
+    cookie: { maxAge: 24 * 60 * 60 * 1000, sameSite: 'strict' }
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', './views');
+
+// Rate limiting
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 requests per `window` (here, per 15 minutes)
+    message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -250,7 +264,7 @@ app.get('/admin-panel', (req, res) => {
 });
 
 // User registration
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
     const { username, password, email, publicKey, encryptedPrivateKey } = req.body;
 
     if (!username || !password || !email) {
@@ -300,7 +314,7 @@ app.post('/api/register', async (req, res) => {
                     { expiresIn: '24h' }
                 );
 
-                res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+                res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
                 res.json({
                     message: 'Registration successful',
                     token,
@@ -316,7 +330,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // User login
-app.post('/api/login', (req, res) => {
+app.post('/api/login', authLimiter, (req, res) => {
     let { username, password, forceLogin } = req.body;
     if (username) username = username.toLowerCase();
 
@@ -350,7 +364,7 @@ app.post('/api/login', (req, res) => {
                 { expiresIn: '24h' }
             );
 
-            res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+            res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: 'strict', secure: process.env.NODE_ENV === 'production' });
             res.json({
                 message: 'Login successful',
                 token,
