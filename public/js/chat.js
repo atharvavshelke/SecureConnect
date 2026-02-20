@@ -8,9 +8,7 @@ let currentChatType = 'private'; // 'private' or 'group'
 let onlineUsers = [];
 let messageHistory = {};
 let currentUserAvatarUrl = null;
-let peerConnection;
 let localStream;
-let remoteStream;
 let isCalling = false;
 let callTimer;
 let secondsActive = 0;
@@ -240,53 +238,121 @@ function connectWebSocket() {
     });
 
     // --- Voice Calling Listeners ---
-    socket.on('incoming-call', async (data) => {
+    socket.on('incoming-call', (data) => {
+        // data: { fromUserId, fromUsername, offer, type }
         if (isCalling) {
-            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false, reason: 'Busy' });
+            socket.emit('call-response', { toUserId: data.fromUserId, accepted: false });
             return;
         }
 
-        const callOverlay = document.getElementById('callOverlay');
-        const callTargetName = document.getElementById('callTargetName');
-        const callStatus = document.getElementById('callStatus');
-        const answerBtn = document.getElementById('answerBtn');
-
-        callOverlay.classList.remove('hidden');
-        callTargetName.textContent = data.fromUsername;
-        callStatus.textContent = `Incoming ${data.type} call...`;
-        answerBtn.classList.remove('hidden');
-
-        // Store call data for answering
+        currentCallType = 'private';
         window.incomingCallData = data;
+        document.getElementById('callOverlay').classList.remove('hidden');
+        document.getElementById('callTargetName').textContent = data.fromUsername;
+        document.getElementById('callStatus').textContent = 'Incoming Call...';
+        document.getElementById('answerBtn').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').classList.add('hidden');
+
+        // Hide mute/deafen initially until answered
+        document.getElementById('muteBtn').classList.add('hidden');
+        document.getElementById('deafenBtn').classList.add('hidden');
+    });
+
+    socket.on('incoming-group-call', (data) => {
+        if (isCalling) return;
+
+        currentCallType = 'group';
+        currentGroupCallId = data.groupId;
+        window.incomingCallData = data;
+
+        document.getElementById('callOverlay').classList.remove('hidden');
+        document.getElementById('callTargetName').textContent = `Group Call: ${data.groupName}`;
+        document.getElementById('callStatus').textContent = `${data.fromUsername} is calling...`;
+        document.getElementById('answerBtn').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').classList.add('hidden');
+
+        document.getElementById('muteBtn').classList.add('hidden');
+        document.getElementById('deafenBtn').classList.add('hidden');
     });
 
     socket.on('call-answered', async (data) => {
-        if (!data.accepted) {
-            alert('Call rejected or user busy');
-            endCall();
-            return;
-        }
+        if (currentCallType !== 'private') return;
 
-        if (data.answer && peerConnection) {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-            await processIceCandidateQueue();
-            startCallTimer();
+        if (data.accepted) {
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                await processIceCandidateQueue();
+                startCallTimer();
+                document.getElementById('callStatus').textContent = 'Connected';
+            } catch (err) {
+                console.error("Error setting remote description:", err);
+                endCall();
+            }
+        } else {
+            alert('Call declined');
+            endCall();
         }
     });
 
     socket.on('ice-candidate', async (data) => {
+        if (currentCallType !== 'private') return;
+
         if (peerConnection && peerConnection.remoteDescription) {
             try {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (e) {
-                console.error('Error adding ice candidate', e);
+                console.error('Error adding received ice candidate', e);
             }
         } else {
-            console.log('Queuing ICE candidate (peerConnection not ready or remoteDescription not set)');
             iceCandidateQueue.push(data.candidate);
         }
     });
 
+    // --- Mesh Networking Listeners ---
+    socket.on('group-call-participants', async (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+
+        // Emitted after we join. We must create an offer for every existing participant
+        for (const participantId of data.participants) {
+            if (participantId !== parseInt(localStorage.getItem('userId'))) {
+                await initiateGroupPeerConnection(participantId);
+            }
+        }
+
+        startCallTimer();
+        document.getElementById('callStatus').textContent = 'Connected to Group';
+    });
+
+    socket.on('user-joined-group-call', (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+        // Wait for them to send us an offer
+        console.log(`${data.username} joined the call`);
+    });
+
+    socket.on('user-left-group-call', (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+        removeGroupPeerConnection(data.userId);
+    });
+
+    socket.on('group-call-offer', async (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+        await handleGroupOffer(data.fromUserId, data.offer);
+    });
+
+    socket.on('group-call-answer', async (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+        await handleGroupAnswer(data.fromUserId, data.answer);
+    });
+
+    socket.on('group-ice-candidate', async (data) => {
+        if (currentCallType !== 'group' || data.groupId !== currentGroupCallId) return;
+        await handleGroupIceCandidate(data.fromUserId, data.candidate);
+    });
+
+    socket.on('call-error', (msg) => {
+        alert(msg);
+        endCall();
+    });
 
     socket.on('call-ended', () => {
         console.log('Call ended by peer');
@@ -1102,8 +1168,26 @@ async function openGroupChat(group, element) {
     }
 }
 
+let currentCallType = null; // 'private' or 'group'
+let currentGroupCallId = null;
+
+// Private call vars
+let peerConnection;
+let remoteStream;
+
+// Group call vars
+let groupPeerConnections = {}; // userId -> RTCPeerConnection
+let groupIceQueues = {}; // userId -> []
+let groupCallHasHadParticipants = false;
+let groupCallMembersCache = {}; // Cache to quickly lookup avatars
+
+// UI State
+let isMuted = false;
+let isDeafened = false;
+let callCreditDeducted = false;
+
 async function processIceCandidateQueue() {
-    if (!peerConnection || !peerConnection.remoteDescription) return;
+    if (currentCallType !== 'private' || !peerConnection || !peerConnection.remoteDescription) return;
     console.log(`Processing ${iceCandidateQueue.length} queued ICE candidates`);
     while (iceCandidateQueue.length > 0) {
         const candidate = iceCandidateQueue.shift();
@@ -1115,12 +1199,36 @@ async function processIceCandidateQueue() {
     }
 }
 
+async function processGroupIceCandidateQueue(userId) {
+    const pc = groupPeerConnections[userId];
+    const queue = groupIceQueues[userId] || [];
+
+    if (!pc || !pc.remoteDescription) return;
+
+    while (queue.length > 0) {
+        const candidate = queue.shift();
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.error('Error adding queued group ice candidate', e);
+        }
+    }
+}
+
 async function startVoiceCall() {
-    if (!currentChatUser || currentChatType !== 'private') return;
+    if (!currentChatUser) return;
+
+    if (currentChatType === 'group') {
+        return startGroupVoiceCall();
+    }
+
     if (isCalling) return;
 
     try {
         isCalling = true;
+        currentCallType = 'private';
+        callCreditDeducted = false;
+
         const callOverlay = document.getElementById('callOverlay');
         const callTargetName = document.getElementById('callTargetName');
         const callStatus = document.getElementById('callStatus');
@@ -1130,6 +1238,10 @@ async function startVoiceCall() {
         callTargetName.textContent = currentChatUser.username;
         callStatus.textContent = 'Calling...';
         answerBtn.classList.add('hidden');
+
+        document.getElementById('muteBtn').classList.remove('hidden');
+        document.getElementById('deafenBtn').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').classList.add('hidden');
 
         if (!window.RTCPeerConnection) {
             alert('Your browser does not support WebRTC (calling feature).');
@@ -1162,6 +1274,19 @@ async function startVoiceCall() {
 
         peerConnection = new RTCPeerConnection(configuration);
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.oniceconnectionstatechange = () => {
+            if (peerConnection.iceConnectionState === 'connected' && !callCreditDeducted) {
+                // Deduct credit only on establishing a connect and only for the caller mapping to 1 outgoing attempt
+                socket.emit('call-connected', { toUserId: currentChatUser.id });
+                callCreditDeducted = true;
+            }
+            if (peerConnection.iceConnectionState === 'disconnected' ||
+                peerConnection.iceConnectionState === 'failed' ||
+                peerConnection.iceConnectionState === 'closed') {
+                endCall();
+            }
+        };
 
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
@@ -1200,9 +1325,74 @@ async function startVoiceCall() {
     }
 }
 
+async function startGroupVoiceCall() {
+    if (isCalling) return;
+
+    try {
+        isCalling = true;
+        currentCallType = 'group';
+        currentGroupCallId = currentChatUser.id;
+        callCreditDeducted = false;
+
+        const callOverlay = document.getElementById('callOverlay');
+        const callTargetName = document.getElementById('callTargetName');
+        const callStatus = document.getElementById('callStatus');
+        const answerBtn = document.getElementById('answerBtn');
+
+        callOverlay.classList.remove('hidden');
+        callTargetName.textContent = `Group Call: ${currentChatUser.name}`;
+        callStatus.textContent = 'Joining...';
+        answerBtn.classList.add('hidden');
+
+        document.getElementById('muteBtn').classList.remove('hidden');
+        document.getElementById('deafenBtn').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').innerHTML = '';
+
+        if (!window.RTCPeerConnection || !navigator.mediaDevices) {
+            alert('WebRTC/Microphone not supported.');
+            endCall();
+            return;
+        }
+
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Broadcast ring to others in the group
+        socket.emit('group-call-request', { groupId: currentGroupCallId });
+
+        // Fetch group members to cache avatars for UI
+        fetch(`/api/groups/${currentGroupCallId}/members`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+            .then(res => res.ok ? res.json() : [])
+            .then(members => {
+                members.forEach(m => {
+                    groupCallMembersCache[m.id] = m;
+                });
+            })
+            .catch(err => console.error("Could not fetch group members for cache", err));
+
+        // Join the active mesh
+        socket.emit('join-group-call', { groupId: currentGroupCallId });
+
+        // Deduct 1 credit for starting a group call
+        socket.emit('call-connected', { groupId: currentGroupCallId });
+        callCreditDeducted = true;
+
+    } catch (error) {
+        console.error('Group call failed:', error);
+        alert('Could not start group call.');
+        endCall();
+    }
+}
+
 async function answerCall() {
     const data = window.incomingCallData;
     if (!data) return;
+
+    if (currentCallType === 'group') {
+        return answerGroupCall(data);
+    }
 
     try {
         isCalling = true;
@@ -1249,6 +1439,14 @@ async function answerCall() {
             }
         };
 
+        peerConnection.oniceconnectionstatechange = () => {
+            if (peerConnection.iceConnectionState === 'disconnected' ||
+                peerConnection.iceConnectionState === 'failed' ||
+                peerConnection.iceConnectionState === 'closed') {
+                endCall();
+            }
+        };
+
         peerConnection.ontrack = (event) => {
             remoteStream = event.streams[0];
             const audio = document.getElementById('remoteAudio');
@@ -1277,6 +1475,202 @@ async function answerCall() {
     }
 }
 
+async function answerGroupCall(data) {
+    try {
+        isCalling = true;
+        callCreditDeducted = false;
+        const answerBtn = document.getElementById('answerBtn');
+        answerBtn.classList.add('hidden');
+        document.getElementById('callStatus').textContent = 'Connecting to Group...';
+
+        document.getElementById('muteBtn').classList.remove('hidden');
+        document.getElementById('deafenBtn').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').classList.remove('hidden');
+        document.getElementById('groupCallParticipants').innerHTML = '';
+
+        if (!navigator.mediaDevices) {
+            endCall();
+            return;
+        }
+
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Fetch group members to cache avatars for UI
+        fetch(`/api/groups/${data.groupId}/members`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+            .then(res => res.ok ? res.json() : [])
+            .then(members => {
+                members.forEach(m => {
+                    groupCallMembersCache[m.id] = m;
+                });
+            })
+            .catch(err => console.error("Could not fetch group members for cache", err));
+
+        socket.emit('join-group-call', { groupId: data.groupId });
+
+        // Deduct 1 credit for joining a group call
+        socket.emit('call-connected', { groupId: data.groupId });
+        callCreditDeducted = true;
+
+    } catch (err) {
+        endCall();
+    }
+}
+
+// --- Group Mesh Core Logic ---
+async function createGroupPeerConnection(userId) {
+    groupCallHasHadParticipants = true;
+    const pc = new RTCPeerConnection(configuration);
+    groupPeerConnections[userId] = pc;
+    groupIceQueues[userId] = [];
+
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('group-ice-candidate', {
+                toUserId: userId,
+                groupId: currentGroupCallId,
+                candidate: event.candidate
+            });
+        }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+            removeGroupPeerConnection(userId);
+        }
+    };
+
+    pc.ontrack = (event) => {
+        let audioElement = document.getElementById(`audio-user-${userId}`);
+        if (!audioElement) {
+            audioElement = document.createElement('audio');
+            audioElement.id = `audio-user-${userId}`;
+            audioElement.autoplay = true;
+            document.getElementById('audioContainer').appendChild(audioElement);
+
+            // Add UI representation
+            addParticipantUI(userId);
+        }
+        audioElement.srcObject = event.streams[0];
+        if (isDeafened) {
+            audioElement.volume = 0;
+        } else {
+            audioElement.volume = 1;
+        }
+    };
+
+    return pc;
+}
+
+async function initiateGroupPeerConnection(userId) {
+    const pc = await createGroupPeerConnection(userId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit('group-call-offer', {
+        toUserId: userId,
+        groupId: currentGroupCallId,
+        offer: offer
+    });
+}
+
+async function handleGroupOffer(fromUserId, offer) {
+    let pc = groupPeerConnections[fromUserId];
+    if (!pc) {
+        pc = await createGroupPeerConnection(fromUserId);
+    }
+
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit('group-call-answer', {
+        toUserId: fromUserId,
+        groupId: currentGroupCallId,
+        answer: answer
+    });
+
+    await processGroupIceCandidateQueue(fromUserId);
+}
+
+async function handleGroupAnswer(fromUserId, answer) {
+    const pc = groupPeerConnections[fromUserId];
+    if (pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await processGroupIceCandidateQueue(fromUserId);
+    }
+}
+
+async function handleGroupIceCandidate(fromUserId, candidate) {
+    const pc = groupPeerConnections[fromUserId];
+    if (pc && pc.remoteDescription) {
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.error(e);
+        }
+    } else {
+        if (!groupIceQueues[fromUserId]) groupIceQueues[fromUserId] = [];
+        groupIceQueues[fromUserId].push(candidate);
+    }
+}
+
+function removeGroupPeerConnection(userId) {
+    const pc = groupPeerConnections[userId];
+    if (pc) {
+        pc.close();
+        delete groupPeerConnections[userId];
+    }
+    delete groupIceQueues[userId];
+
+    const audioEl = document.getElementById(`audio-user-${userId}`);
+    if (audioEl) audioEl.remove();
+
+    const uiEl = document.getElementById(`participant-ui-${userId}`);
+    if (uiEl) uiEl.remove();
+
+    if (currentCallType === 'group' && groupCallHasHadParticipants) {
+        if (Object.keys(groupPeerConnections).length === 0) {
+            console.log("Last participant left, ending group call automatically.");
+            endCall(true);
+        }
+    }
+}
+
+function addParticipantUI(userId) {
+    const container = document.getElementById('groupCallParticipants');
+    const el = document.createElement('div');
+    el.className = 'group-participant';
+    el.id = `participant-ui-${userId}`;
+
+    // Attempt to lookup username and avatar
+    let username = 'User ' + userId;
+    let avatarHtml = `<div class="user-avatar">${username.charAt(0).toUpperCase()}</div>`;
+
+    // Check our dedicated group member cache first, then fallback to allUsers
+    let userRecord = groupCallMembersCache[userId] || allUsers.find(u => u.id === userId);
+
+    if (userRecord) {
+        username = userRecord.username;
+        if (userRecord.avatar) {
+            avatarHtml = `<div class="user-avatar"><img src="${userRecord.avatar}" alt="${username}'s avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+        } else {
+            avatarHtml = `<div class="user-avatar">${username.charAt(0).toUpperCase()}</div>`;
+        }
+    }
+
+    el.innerHTML = `
+        ${avatarHtml}
+        <div class="user-name" style="margin-top: 5px; font-weight: bold; color: white; text-shadow: 1px 1px 2px black;">${username}</div>
+    `;
+    container.appendChild(el);
+}
+
+// --- End ---
+
 function endCall(notifyPeer = true) {
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     if (peerConnection) peerConnection.close();
@@ -1284,8 +1678,10 @@ function endCall(notifyPeer = true) {
     // Notify peer before clearing state
     if (notifyPeer) {
         const targetUserId = currentChatUser?.id || window.incomingCallData?.fromUserId;
-        if (targetUserId) {
+        if (targetUserId && currentCallType === 'private') {
             socket.emit('call-ended', { toUserId: targetUserId });
+        } else if (currentGroupCallId && currentCallType === 'group') {
+            socket.emit('leave-group-call', { groupId: currentGroupCallId });
         }
     }
 
@@ -1293,11 +1689,27 @@ function endCall(notifyPeer = true) {
     localStream = null;
     remoteStream = null;
     isCalling = false;
+    currentCallType = null;
+    currentGroupCallId = null;
     iceCandidateQueue = [];
     stopCallTimer();
 
+    // Clear all group peer connections
+    for (const userId in groupPeerConnections) {
+        removeGroupPeerConnection(userId);
+    }
+    groupPeerConnections = {};
+    groupIceQueues = {};
+    groupCallHasHadParticipants = false;
+    groupCallMembersCache = {};
+
+    isMuted = false;
+    isDeafened = false;
+
     document.getElementById('callOverlay').classList.add('hidden');
     window.incomingCallData = null;
+    updateMuteUI(); // Reset mute/deafen UI
+    updateDeafenUI();
 }
 
 function startCallTimer() {
@@ -1580,16 +1992,95 @@ setTimeout(() => {
     if (callBtn) callBtn.onclick = startVoiceCall;
 
     const hangupBtn = document.getElementById('hangupBtn');
-    if (hangupBtn) hangupBtn.onclick = endCall;
+    if (hangupBtn) hangupBtn.onclick = () => endCall(true);
 
     const answerBtn = document.getElementById('answerBtn');
     if (answerBtn) answerBtn.onclick = answerCall;
 
+    const muteBtn = document.getElementById('muteBtn');
+    if (muteBtn) muteBtn.onclick = toggleMute;
+
+    const deafenBtn = document.getElementById('deafenBtn');
+    if (deafenBtn) deafenBtn.onclick = toggleDeafen;
+
     // Group Modal outside click
     document.getElementById('groupMembersModal').addEventListener('click', (e) => {
-        if (e.target.id === 'groupMembersModal') closeGroupMembers();
+        if (e.target.id === 'groupMembersModal') {
+            closeGroupMembers();
+        }
     });
 
     setupMemberSearch();
     loadGroups();
 }, 100);
+
+function toggleMute() {
+    isMuted = !isMuted;
+    if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = !isMuted;
+        });
+    }
+    updateMuteUI();
+}
+
+function updateMuteUI() {
+    const muteIcon = document.getElementById('muteIcon');
+    const btn = document.getElementById('muteBtn');
+    if (isMuted) {
+        btn.classList.add('disabled');
+        muteIcon.innerHTML = `
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+            <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+            <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+        `;
+    } else {
+        btn.classList.remove('disabled');
+        muteIcon.innerHTML = `
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+        `;
+    }
+}
+
+function toggleDeafen() {
+    isDeafened = !isDeafened;
+
+    // Private Call Audio
+    const privateAudio = document.getElementById('remoteAudio');
+    if (privateAudio) {
+        privateAudio.volume = isDeafened ? 0 : 1;
+    }
+
+    // Group Call Audios
+    document.querySelectorAll('audio[id^="audio-user-"]').forEach(el => {
+        el.volume = isDeafened ? 0 : 1;
+    });
+
+    updateDeafenUI();
+}
+
+function updateDeafenUI() {
+    const deafenIcon = document.getElementById('deafenIcon');
+    const btn = document.getElementById('deafenBtn');
+    if (isDeafened) {
+        btn.classList.add('disabled');
+        deafenIcon.innerHTML = `
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M23 9a11.05 11.05 0 0 1-2.07 7.93"></path>
+            <path d="M19.07 4.93A10.06 10.06 0 0 1 20.35 12"></path>
+        `;
+    } else {
+        btn.classList.remove('disabled');
+        deafenIcon.innerHTML = `
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        `;
+    }
+}

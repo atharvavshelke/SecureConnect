@@ -895,6 +895,7 @@ const deductCredit = (userId, callback) => {
 
 // Socket.io for real-time chat
 const connectedUsers = new Map();
+const activeGroupCalls = new Map(); // groupId -> Set of userIds
 
 io.on('connection', (socket) => {
     console.log('New client connected');
@@ -1057,8 +1058,186 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- Mesh Group Voice Calling ---
+    socket.on('group-call-request', (data) => {
+        const { groupId } = data;
+        if (!socket.userId) return;
+
+        db.get('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?', [groupId, socket.userId], (err, member) => {
+            if (err || !member) return socket.emit('call-error', 'Not a member of this group');
+
+            // Initialize group call tracking if it doesn't exist
+            if (!activeGroupCalls.has(groupId)) {
+                activeGroupCalls.set(groupId, new Set());
+            }
+
+            // Get other online group members
+            db.all('SELECT user_id FROM group_members WHERE group_id = ? AND user_id != ?', [groupId, socket.userId], (err, members) => {
+                if (err) return;
+
+                db.get('SELECT name FROM groups WHERE id = ?', [groupId], (err, group) => {
+                    if (err || !group) return;
+
+                    members.forEach(m => {
+                        const recipientSocketId = connectedUsers.get(m.user_id);
+                        if (recipientSocketId) {
+                            io.to(recipientSocketId).emit('incoming-group-call', {
+                                groupId: groupId,
+                                groupName: group.name,
+                                fromUserId: socket.userId,
+                                fromUsername: socket.username
+                            });
+                        }
+                    });
+                });
+            });
+        });
+    });
+
+    socket.on('join-group-call', (data) => {
+        const { groupId } = data;
+        if (!socket.userId) return;
+
+        if (!activeGroupCalls.has(groupId)) {
+            activeGroupCalls.set(groupId, new Set());
+        }
+
+        const participants = activeGroupCalls.get(groupId);
+
+        // Notify existing participants that someone is joining
+        participants.forEach(participantId => {
+            const recipientSocketId = connectedUsers.get(participantId);
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit('user-joined-group-call', {
+                    groupId: groupId,
+                    userId: socket.userId,
+                    username: socket.username
+                });
+            }
+        });
+
+        // Send the current list of participants to the new joiner
+        socket.emit('group-call-participants', {
+            groupId: groupId,
+            participants: Array.from(participants)
+        });
+
+        // Add the new user to the call
+        participants.add(socket.userId);
+    });
+
+    socket.on('leave-group-call', (data) => {
+        const { groupId } = data;
+        if (!socket.userId || !activeGroupCalls.has(groupId)) return;
+
+        const participants = activeGroupCalls.get(groupId);
+        participants.delete(socket.userId);
+
+        if (participants.size === 0) {
+            activeGroupCalls.delete(groupId);
+        } else {
+            // Notify others
+            participants.forEach(participantId => {
+                const recipientSocketId = connectedUsers.get(participantId);
+                if (recipientSocketId) {
+                    io.to(recipientSocketId).emit('user-left-group-call', {
+                        groupId: groupId,
+                        userId: socket.userId
+                    });
+                }
+            });
+        }
+    });
+
+    socket.on('group-call-offer', (data) => {
+        const { toUserId, groupId, offer } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('group-call-offer', {
+                fromUserId: socket.userId,
+                groupId: groupId,
+                offer: offer
+            });
+        }
+    });
+
+    socket.on('group-call-answer', (data) => {
+        const { toUserId, groupId, answer } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('group-call-answer', {
+                fromUserId: socket.userId,
+                groupId: groupId,
+                answer: answer
+            });
+        }
+    });
+
+    socket.on('group-ice-candidate', (data) => {
+        const { toUserId, groupId, candidate } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('group-ice-candidate', {
+                fromUserId: socket.userId,
+                groupId: groupId,
+                candidate: candidate
+            });
+        }
+    });
+
+    // --- Validated Credit Deduction for Calls ---
+    socket.on('call-connected', (data) => {
+        // Only deduct for the caller (or someone joining a group call)
+        // to avoid double charging. We'll rely on the client emitting this exactly once per successful outgoing leg.
+        if (!socket.userId) return;
+
+        deductCredit(socket.userId, (err, success) => {
+            if (err) {
+                socket.emit('call-error', 'Insufficient credits for calling. Call will be disconnected.');
+            } else {
+                // Send an updated credit count back
+                db.get('SELECT credits FROM users WHERE id = ?', [socket.userId], (err, row) => {
+                    if (!err && row) {
+                        socket.emit('credits-updated', { credits: row.credits });
+                    }
+                });
+            }
+        });
+    });
+
+    socket.on('call-ended', (data) => {
+        const { toUserId } = data;
+        const recipientSocketId = connectedUsers.get(parseInt(toUserId));
+        if (recipientSocketId) {
+            io.to(recipientSocketId).emit('call-ended', {
+                fromUserId: socket.userId
+            });
+        }
+    });
+
     socket.on('disconnect', () => {
         if (socket.userId) {
+            // Cleanup group calls
+            for (const [groupId, participants] of activeGroupCalls.entries()) {
+                if (participants.has(socket.userId)) {
+                    participants.delete(socket.userId);
+
+                    if (participants.size === 0) {
+                        activeGroupCalls.delete(groupId);
+                    } else {
+                        participants.forEach(participantId => {
+                            const recipientSocketId = connectedUsers.get(participantId);
+                            if (recipientSocketId) {
+                                io.to(recipientSocketId).emit('user-left-group-call', {
+                                    groupId: groupId,
+                                    userId: socket.userId
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+
             connectedUsers.delete(socket.userId);
             const onlineUsers = Array.from(io.sockets.sockets.values())
                 .filter(s => s.userId && !s.isAdmin)
