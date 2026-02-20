@@ -19,8 +19,10 @@ SecureConnect is a secure, real-time chat application featuring military-grade e
 - **JWT Authentication:** Secure token-based auth
 - **Password Hashing:** bcrypt with salt rounds
 
-### 💬 Chat
+### 💬 Chat & Calls
 - **Real-Time Messaging:** WebSocket-based instant communication
+- **Private & Group Voice Calls:** WebRTC peer-to-peer audio calls with Mesh Networking for groups
+- **Group Chats:** End-to-end encrypted multi-user group conversations
 - **Online Status:** See who's available
 - **Message History:** Encrypted message storage
 - **User Discovery:** Browse all registered users
@@ -223,18 +225,18 @@ id, user_id, amount, transaction_ref, status, created_at, approved_at
 ### Server-Side
 - Messages stored encrypted
 - Passwords hashed with bcrypt
-- JWT tokens for authentication
+- JWT tokens for authentication (Strict SameSite cookies)
 - No plaintext message access
+- **Helmet HTTP Headers**: Protection against XSS, clickjacking, and MIME sniffing
+- **Rate-Limiting**: Progressive limits on authentication routes to prevent brute-forcing
 
 ### Production Recommendations
-1. Use HTTPS/WSS
-2. Implement rate limiting
-3. Add CAPTCHA to registration
-4. Use secure key storage (Hardware Security Module)
-5. Implement key backup/recovery system
-6. Add two-factor authentication
-7. Regular security audits
-8. Database encryption at rest
+1. Use HTTPS/WSS (Required for WebRTC Audio Calls)
+2. Use secure key storage (Hardware Security Module)
+3. Implement key backup/recovery system
+4. Add two-factor authentication
+5. Regular security audits
+6. Database encryption at rest
 
 ---
 
@@ -292,13 +294,12 @@ Requires:
 ## Future Enhancements
 
 - [ ] File and image encryption
-- [ ] Group chats
 - [ ] Key backup and recovery system
 - [ ] Multi-device support
 - [ ] Automated payment gateway integration
 - [ ] Message read receipts
 - [ ] Typing indicators
-- [ ] Voice/video calls
+- [ ] Video calls
 - [ ] Mobile applications
 - [ ] Message expiration (self-destruct)
 
