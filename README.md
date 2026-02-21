@@ -48,7 +48,8 @@
 **Backend:**
 - Node.js & Express.js
 - Socket.IO (for WebSockets)
-- SQLite3 (Relational database)
+- **Sequelize ORM** (Managing SQLite3 relational data)
+- **Redis** (Optional: Socket.IO scaling and adapter)
 
 **Security & Utilities:**
 - `bcryptjs` (Password Hashing)
@@ -70,6 +71,7 @@
 Ensure you have the following installed:
 - [Node.js](https://nodejs.org/) (v16.x or higher)
 - [npm](https://www.npmjs.com/)
+- [Redis](https://redis.io/) (Optional, required for scaling)
 
 ### Installation
 
@@ -84,18 +86,20 @@ Ensure you have the following installed:
    npm install
    ```
 
-3. **Environment Setup (Optional but recommended):**
-   Create a `.env` file in the root directory and configure the following variables:
+3. **Environment Setup:**
+   Create a `.env` file in the root directory. **`JWT_SECRET` and `ADMIN_PASSWORD` are mandatory.**
    ```env
    PORT=3000
    JWT_SECRET=your_super_secret_jwt_key
    ADMIN_PASSWORD=your_custom_admin_password
    NODE_ENV=development
+   
+   # Optional: Redis URL for Socket.IO scaling (e.g., redis://localhost:6379)
+   # REDIS_URL=
    ```
-   *Note: If not provided, the application will use secure default fallbacks.*
 
 4. **Initialize the Database:**
-   The SQLite database (`secureconnect.db`) will be automatically created and initialized upon starting the server.
+   The SQLite database will be automatically created and initialized via Sequelize upon starting the server.
 
 5. **Start the server:**
    ```bash
@@ -149,3 +153,4 @@ SecureConnect includes a pre-configured GitHub Actions workflow (`deploy.yml`) f
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
