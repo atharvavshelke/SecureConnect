@@ -2,6 +2,11 @@
 <html lang="en">
 
 <head>
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureConnect - Chat</title>
@@ -249,28 +254,28 @@
 
             <div class="modal-body">
                 <div class="credit-packages">
-                    <div class="package-card" onclick="selectPackage(50)">
-                        <div class="package-amount">50 Credits</div>
-                        <div class="package-price">$5.00</div>
-                        <div class="package-detail">$0.10 per message</div>
-                    </div>
-                    <div class="package-card featured" onclick="selectPackage(100)">
-                        <div class="package-badge">Popular</div>
-                        <div class="package-amount">100 Credits</div>
-                        <div class="package-price">$8.00</div>
-                        <div class="package-detail">$0.08 per message</div>
-                    </div>
                     <div class="package-card" onclick="selectPackage(500)">
                         <div class="package-amount">500 Credits</div>
-                        <div class="package-price">$30.00</div>
-                        <div class="package-detail">$0.06 per message</div>
+                        <div class="package-price">1 INR</div>
+                        <div class="package-detail">0.002 INR per message</div>
+                    </div>
+                    <div class="package-card featured" onclick="selectPackage(1000)">
+                        <div class="package-badge">Popular</div>
+                        <div class="package-amount">1000 Credits</div>
+                        <div class="package-price">2 INR</div>
+                        <div class="package-detail">0.002 INR per message</div>
+                    </div>
+                    <div class="package-card" onclick="selectPackage(10000)">
+                        <div class="package-amount">10000 Credits</div>
+                        <div class="package-price">10 INR</div>
+                        <div class="package-detail">0.001 INR per message</div>
                     </div>
                 </div>
 
                 <form id="creditRequestForm" class="credit-form">
                     <div class="form-group">
                         <label>Selected Amount</label>
-                        <input type="number" id="creditAmount" value="100" readonly>
+                        <input type="number" id="creditAmount" value="1000" readonly>
                     </div>
 
                     <div class="payment-instructions">
