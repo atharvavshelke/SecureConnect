@@ -1,0 +1,51 @@
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.terminal-block {
+    background: rgba(5, 8, 16, 0.8);
+    border: 1px solid rgba(0, 255, 245, 0.3);
+    border-radius: 8px;
+    padding: 2rem;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.terminal-block::before {
+    content: 'root@secureconnect:~#';
+    display: block;
+    color: var(--primary);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px dashed rgba(0, 255, 245, 0.2);
+    padding-bottom: 0.5rem;
+}
+
+.pgp-block {
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--success);
+    font-family: 'Space Mono', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 1rem;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .contact-grid {
+        grid-template-columns: 1fr;
+    }
+}

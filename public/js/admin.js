@@ -1,10 +1,9 @@
-// Admin Panel JavaScript
+import { adminApi } from './modules/adminApi.js';
 
 let adminToken = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if admin is already logged in
-    adminToken = localStorage.getItem('admin_token');
+    adminToken = adminApi.getToken();
 
     if (adminToken) {
         verifyAdminToken();
@@ -12,6 +11,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup login form
     document.getElementById('adminLoginForm').addEventListener('submit', handleAdminLogin);
+
+    // Static Event Listeners
+    const btnLogout = document.getElementById('btnLogout');
+    if (btnLogout) btnLogout.addEventListener('click', logout);
+
+    const tabTransactions = document.getElementById('tabTransactions');
+    if (tabTransactions) tabTransactions.addEventListener('click', (e) => showTab('transactions', e));
+
+    const tabUsers = document.getElementById('tabUsers');
+    if (tabUsers) tabUsers.addEventListener('click', (e) => showTab('users', e));
+
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
+
+    const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+    if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleSidebar);
+
+    const btnRefreshTransactions = document.getElementById('btnRefreshTransactions');
+    if (btnRefreshTransactions) btnRefreshTransactions.addEventListener('click', loadPendingTransactions);
+
+    const btnRefreshUsers = document.getElementById('btnRefreshUsers');
+    if (btnRefreshUsers) btnRefreshUsers.addEventListener('click', loadUsers);
+
+    // Event Delegation for dynamically populated lists
+    document.getElementById('transactionsGrid').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+
+        if (action === 'approve') approveTransaction(id);
+        if (action === 'reject') rejectTransaction(id);
+    });
+
+    document.getElementById('usersTableBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+
+        if (action === 'toggle-ban') {
+            const shouldBan = btn.getAttribute('data-should-ban') === 'true';
+            toggleBanUser(id, shouldBan);
+        }
+        if (action === 'delete') deleteUser(id);
+    });
 });
 
 async function handleAdminLogin(e) {
@@ -23,9 +68,7 @@ async function handleAdminLogin(e) {
     try {
         const response = await fetch('/api/login', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
 
@@ -56,29 +99,15 @@ function showLoginError(message) {
     const errorElement = document.getElementById('adminLoginError');
     errorElement.textContent = message;
     errorElement.classList.add('show');
-
-    setTimeout(() => {
-        errorElement.classList.remove('show');
-    }, 5000);
+    setTimeout(() => errorElement.classList.remove('show'), 5000);
 }
 
 async function verifyAdminToken() {
     try {
-        const response = await fetch('/api/user/me', {
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            document.getElementById('adminUsername').textContent = userData.username;
-            showAdminPanel();
-            loadPendingTransactions();
-        } else {
-            localStorage.removeItem('admin_token');
-            adminToken = null;
-        }
+        const userData = await adminApi.get('/api/user/me');
+        document.getElementById('adminUsername').textContent = userData.username;
+        showAdminPanel();
+        loadPendingTransactions();
     } catch (error) {
         console.error('Token verification failed:', error);
         localStorage.removeItem('admin_token');
@@ -91,7 +120,7 @@ function showAdminPanel() {
     document.getElementById('transactionsTab').classList.remove('hidden');
 }
 
-function showTab(tabName) {
+function showTab(tabName, event) {
     // Hide all tabs
     document.getElementById('transactionsTab').classList.add('hidden');
     document.getElementById('usersTab').classList.add('hidden');
@@ -104,11 +133,11 @@ function showTab(tabName) {
     // Show selected tab
     if (tabName === 'transactions') {
         document.getElementById('transactionsTab').classList.remove('hidden');
-        event.currentTarget.classList.add('active');
+        if (event) event.currentTarget.classList.add('active');
         loadPendingTransactions();
     } else if (tabName === 'users') {
         document.getElementById('usersTab').classList.remove('hidden');
-        event.currentTarget.classList.add('active');
+        if (event) event.currentTarget.classList.add('active');
         loadUsers();
     }
 }
@@ -118,24 +147,12 @@ async function loadPendingTransactions() {
     grid.innerHTML = '<div class="loading">Loading transactions...</div>';
 
     try {
-        const response = await fetch('/api/admin/transactions/pending', {
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            const transactions = await response.json();
-            displayTransactions(transactions);
-
-            // Update badge
-            document.getElementById('pendingBadge').textContent = transactions.length;
-        } else {
-            grid.innerHTML = '<div class="loading">Failed to load transactions</div>';
-        }
+        const transactions = await adminApi.get('/api/admin/transactions/pending');
+        displayTransactions(transactions);
+        document.getElementById('pendingBadge').textContent = transactions.length;
     } catch (error) {
         console.error('Failed to load transactions:', error);
-        grid.innerHTML = '<div class="loading">Connection error</div>';
+        grid.innerHTML = '<div class="loading">Failed to load transactions</div>';
     }
 }
 
@@ -178,10 +195,10 @@ function displayTransactions(transactions) {
             </div>
             
             <div class="transaction-actions">
-                <button class="action-btn btn-approve" onclick="approveTransaction(${transaction.id})">
+                <button class="action-btn btn-approve" data-action="approve" data-id="${transaction.id}">
                     Approve
                 </button>
-                <button class="action-btn btn-reject" onclick="rejectTransaction(${transaction.id})">
+                <button class="action-btn btn-reject" data-action="reject" data-id="${transaction.id}">
                     Reject
                 </button>
             </div>
@@ -192,54 +209,28 @@ function displayTransactions(transactions) {
 }
 
 async function approveTransaction(transactionId) {
-    if (!confirm('Approve this transaction and add credits to user account?')) {
-        return;
-    }
+    if (!confirm('Approve this transaction and add credits to user account?')) return;
 
     try {
-        const response = await fetch(`/api/admin/transactions/${transactionId}/approve`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            alert('Transaction approved successfully!');
-            loadPendingTransactions();
-        } else {
-            const data = await response.json();
-            alert(data.error || 'Failed to approve transaction');
-        }
+        await adminApi.post(`/api/admin/transactions/${transactionId}/approve`);
+        alert('Transaction approved successfully!');
+        loadPendingTransactions();
     } catch (error) {
         console.error('Failed to approve transaction:', error);
-        alert('Connection error. Please try again.');
+        alert('Failed to approve transaction');
     }
 }
 
 async function rejectTransaction(transactionId) {
-    if (!confirm('Reject this transaction? This action cannot be undone.')) {
-        return;
-    }
+    if (!confirm('Reject this transaction? This action cannot be undone.')) return;
 
     try {
-        const response = await fetch(`/api/admin/transactions/${transactionId}/reject`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            alert('Transaction rejected.');
-            loadPendingTransactions();
-        } else {
-            const data = await response.json();
-            alert(data.error || 'Failed to reject transaction');
-        }
+        await adminApi.post(`/api/admin/transactions/${transactionId}/reject`);
+        alert('Transaction rejected.');
+        loadPendingTransactions();
     } catch (error) {
         console.error('Failed to reject transaction:', error);
-        alert('Connection error. Please try again.');
+        alert('Failed to reject transaction');
     }
 }
 
@@ -248,21 +239,11 @@ async function loadUsers() {
     tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading users...</td></tr>';
 
     try {
-        const response = await fetch('/api/admin/users', {
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            const users = await response.json();
-            displayUsers(users);
-        } else {
-            tbody.innerHTML = '<tr><td colspan="5" class="loading">Failed to load users</td></tr>';
-        }
+        const users = await adminApi.get('/api/admin/users');
+        displayUsers(users);
     } catch (error) {
         console.error('Failed to load users:', error);
-        tbody.innerHTML = '<tr><td colspan="5" class="loading">Connection error</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Failed to load users</td></tr>';
     }
 }
 
@@ -290,10 +271,10 @@ function displayUsers(users) {
             <td><span class="date-text">${new Date(user.created_at).toLocaleDateString()}</span></td>
             <td>
                 <div class="user-actions">
-                    <button class="action-btn-small ${user.is_banned ? 'btn-unban' : 'btn-ban'}" onclick="toggleBanUser(${user.id}, ${!user.is_banned})">
+                    <button class="action-btn-small ${user.is_banned ? 'btn-unban' : 'btn-ban'}" data-action="toggle-ban" data-id="${user.id}" data-should-ban="${!user.is_banned}">
                         ${user.is_banned ? 'Unban' : 'Ban'}
                     </button>
-                    <button class="action-btn-small btn-delete" onclick="deleteUser(${user.id})">
+                    <button class="action-btn-small btn-delete" data-action="delete" data-id="${user.id}">
                         Delete
                     </button>
                 </div>
@@ -306,68 +287,37 @@ function displayUsers(users) {
 
 async function toggleBanUser(userId, shouldBan) {
     const action = shouldBan ? 'ban' : 'unban';
-    if (!confirm(`Are you sure you want to ${action} this user?`)) {
-        return;
-    }
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
 
     try {
-        const response = await fetch(`/api/admin/users/${userId}/ban`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ban: shouldBan })
-        });
-
-        if (response.ok) {
-            alert(`User ${action}ned successfully!`);
-            loadUsers();
-        } else {
-            const data = await response.json();
-            alert(data.error || `Failed to ${action} user`);
-        }
+        await adminApi.post(`/api/admin/users/${userId}/ban`, { ban: shouldBan });
+        alert(`User ${action}ned successfully!`);
+        loadUsers();
     } catch (error) {
         console.error(`Failed to ${action} user:`, error);
-        alert('Connection error. Please try again.');
+        alert(`Failed to ${action} user`);
     }
 }
 
+// Globals removed to respect CSP
+
 async function deleteUser(userId) {
-    if (!confirm('Are you sure you want to PERMANENTLY DELETE this user? This action cannot be undone.')) {
-        return;
-    }
+    if (!confirm('Are you sure you want to PERMANENTLY DELETE this user? This action cannot be undone.')) return;
 
     try {
-        const response = await fetch(`/api/admin/users/${userId}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${adminToken}`
-            }
-        });
-
-        if (response.ok) {
-            alert('User deleted successfully!');
-            loadUsers();
-        } else {
-            const data = await response.json();
-            alert(data.error || 'Failed to delete user');
-        }
+        await adminApi.delete(`/api/admin/users/${userId}`);
+        alert('User deleted successfully!');
+        loadUsers();
     } catch (error) {
         console.error('Failed to delete user:', error);
-        alert('Connection error. Please try again.');
+        alert('Failed to delete user');
     }
 }
 
 async function logout() {
     if (adminToken) {
         try {
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${adminToken}`
-                }
-            });
+            await adminApi.post('/api/auth/logout');
         } catch (e) {
             console.error('Logout failed', e);
         }

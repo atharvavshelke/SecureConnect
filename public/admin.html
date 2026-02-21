@@ -3,10 +3,10 @@
 
 <head>
     <!-- Favicon -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/images/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureConnect - Admin Panel</title>
@@ -29,7 +29,7 @@
             </div>
 
             <nav class="admin-nav">
-                <button class="nav-item active" onclick="showTab('transactions')">
+                <button class="nav-item active" id="tabTransactions">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="1" x2="12" y2="23" />
                         <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -37,7 +37,7 @@
                     Transactions
                     <span class="badge" id="pendingBadge">0</span>
                 </button>
-                <button class="nav-item" onclick="showTab('users')">
+                <button class="nav-item" id="tabUsers">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />
@@ -53,7 +53,7 @@
                     <span class="status-dot active"></span>
                     <span id="adminUsername">admin</span>
                 </div>
-                <button class="logout-btn" onclick="logout()">
+                <button class="logout-btn" id="btnLogout">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                         <polyline points="16 17 21 12 16 7" />
@@ -63,11 +63,11 @@
             </div>
         </aside>
 
-        <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="admin-main">
             <div class="mobile-header">
-                <button class="menu-btn" onclick="toggleSidebar()">
+                <button class="menu-btn" id="btnToggleSidebar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="3" y1="12" x2="21" y2="12" />
                         <line x1="3" y1="6" x2="21" y2="6" />
@@ -114,7 +114,7 @@
                         <h1>Pending Transactions</h1>
                         <p>Review and approve credit purchases</p>
                     </div>
-                    <button class="refresh-btn" onclick="loadPendingTransactions()">
+                    <button class="refresh-btn" id="btnRefreshTransactions">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="23 4 23 10 17 10" />
                             <polyline points="1 20 1 14 7 14" />
@@ -136,7 +136,7 @@
                         <h1>User Management</h1>
                         <p>Overview of all registered users</p>
                     </div>
-                    <button class="refresh-btn" onclick="loadUsers()">
+                    <button class="refresh-btn" id="btnRefreshUsers">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="23 4 23 10 17 10" />
                             <polyline points="1 20 1 14 7 14" />
@@ -169,7 +169,7 @@
         </main>
     </div>
 
-    <script src="/js/admin.js"></script>
+    <script type="module" src="/js/admin.js"></script>
 </body>
 
 </html>

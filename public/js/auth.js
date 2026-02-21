@@ -10,6 +10,14 @@ function switchToLogin() {
     document.getElementById('loginCard').classList.remove('hidden');
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    const btnSwitchToRegister = document.getElementById('btnSwitchToRegister');
+    if (btnSwitchToRegister) btnSwitchToRegister.addEventListener('click', switchToRegister);
+
+    const btnSwitchToLogin = document.getElementById('btnSwitchToLogin');
+    if (btnSwitchToLogin) btnSwitchToLogin.addEventListener('click', switchToLogin);
+});
+
 function showError(elementId, message) {
     const errorElement = document.getElementById(elementId);
     errorElement.textContent = message;

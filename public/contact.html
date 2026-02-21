@@ -3,10 +3,10 @@
 
 <head>
     <!-- Favicon -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/images/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureConnect - Intel Dispatch</title>
@@ -15,59 +15,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap"
         rel="stylesheet">
-    <style>
-        .contact-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .terminal-block {
-            background: rgba(5, 8, 16, 0.8);
-            border: 1px solid rgba(0, 255, 245, 0.3);
-            border-radius: 8px;
-            padding: 2rem;
-            position: relative;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-        }
-
-        .terminal-block::before {
-            content: 'root@secureconnect:~#';
-            display: block;
-            color: var(--primary);
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            border-bottom: 1px dashed rgba(0, 255, 245, 0.2);
-            padding-bottom: 0.5rem;
-        }
-
-        .pgp-block {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 1rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            color: var(--success);
-            font-family: 'Space Mono', monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin-top: 1rem;
-            border: 1px solid rgba(0, 255, 136, 0.2);
-        }
-
-        .contact-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        @media (max-width: 768px) {
-            .contact-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/css/contact.css">
 </head>
 
 <body>
@@ -113,8 +61,7 @@
                 <div class="terminal-block">
                     <h3 style="color: var(--text-primary); margin-bottom: 1rem; font-family: 'Orbitron', sans-serif;">
                         Clear-text Dispatch</h3>
-                    <form class="contact-form"
-                        onsubmit="event.preventDefault(); alert('Transmission logged and routed to /dev/null for security.');">
+                    <form class="contact-form" id="contactForm">
                         <div class="form-group">
                             <label>Designation (Alias)</label>
                             <input type="text" required placeholder="User-5942">
@@ -179,6 +126,7 @@
             </div>
         </footer>
     </div>
+    <script src="/js/contact.js"></script>
 </body>
 
 </html>
