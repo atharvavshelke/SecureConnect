@@ -32,6 +32,7 @@
 
 ### 🎨 Modern UI/UX
 - Responsive, dynamic, and premium interface built with Vanilla CSS.
+- Dedicated Marketing, About Us (`about.html`), and Secure Contact (`contact.html`) pages.
 - Profile customization with avatar file uploads (`multer`).
 
 ---
@@ -126,6 +127,8 @@ Upon the first startup, a default admin account is created if one does not exist
    - Both the encrypted message and the encrypted AES key are sent to the server.
 4. **Message Decryption:** The recipient retrieves the payload, decrypts the AES key using their locally unencrypted RSA Private Key, and then decrypts the message.
 5. **Group Encryption:** A group admin generates a communal AES key. This key is individually encrypted with every group member's RSA Public Key and distributed. All group messages are encrypted symmetrically with this group AES key.
+
+> **Note:** For a highly granular breakdown of the specific technologies and architectural decisions utilized in SecureConnect, please read the [Features Documentation](features.md).
 
 ---
 
