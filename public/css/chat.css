@@ -1,4 +1,20 @@
-/* :root variables moved to theme.css */
+:root {
+    --primary: #00fff5;
+    --primary-dim: #00b8b1;
+    --secondary: #0066ff;
+    --bg-dark: #0a0e17;
+    --bg-darker: #050810;
+    --bg-card: #131823;
+    --bg-card-hover: #1a1f2e;
+    --text-primary: #e4e7eb;
+    --text-secondary: #8b92a8;
+    --border: #1f2937;
+    --border-bright: #2d3748;
+    --success: #00ff88;
+    --error: #ff3366;
+    --warning: #ffaa00;
+    --bg-lighter: #1a1f2e;
+}
 
 * {
     margin: 0;
@@ -36,7 +52,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    background: var(--bg-card);
+    background: rgba(5, 8, 16, 0.7);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -137,8 +153,8 @@ body {
 .search-container input {
     width: 100%;
     padding: 0.6rem 1rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: rgba(19, 24, 35, 0.6);
+    border: 1px solid rgba(45, 55, 72, 0.5);
     border-radius: 8px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
@@ -149,7 +165,7 @@ body {
 .search-container input:focus {
     outline: none;
     border-color: var(--primary);
-    background: var(--bg-card-hover);
+    background: rgba(19, 24, 35, 0.9);
     box-shadow: 0 0 0 3px rgba(0, 255, 245, 0.15), 0 0 10px rgba(0, 255, 245, 0.1) inset;
 }
 
@@ -169,7 +185,7 @@ body {
 
 .user-item {
     padding: 0.875rem;
-    background: var(--bg-card);
+    background: rgba(19, 24, 35, 0.4);
     border: 1px solid transparent;
     border-left: 2px solid transparent;
     border-radius: 8px;
@@ -182,14 +198,14 @@ body {
 }
 
 .user-item:hover {
-    background: var(--bg-card-hover);
+    background: rgba(26, 31, 46, 0.8);
     border-left-color: var(--primary);
     transform: translateX(4px);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .user-item.active {
-    background: var(--bg-lighter);
+    background: rgba(26, 31, 46, 0.9);
     border-color: rgba(0, 255, 245, 0.2);
     border-left: 3px solid var(--primary);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -316,7 +332,7 @@ body {
     gap: 1rem;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-card);
+    background: rgba(5, 8, 16, 0.7);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -441,8 +457,8 @@ body {
 .message-bubble {
     padding: 0.875rem 1.25rem;
     border-radius: 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: rgba(19, 24, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     word-wrap: break-word;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(4px);
@@ -471,8 +487,8 @@ body {
 }
 
 .message-input-container {
-    border-top: 1px solid var(--border);
-    background: var(--bg-card);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(5, 8, 16, 0.8);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     padding: 1rem 1.5rem;
@@ -504,8 +520,8 @@ body {
 .message-form input {
     flex: 1;
     padding: 1rem 1.25rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: rgba(19, 24, 35, 0.6);
+    border: 1px solid rgba(45, 55, 72, 0.6);
     border-radius: 24px;
     color: var(--text-primary);
     font-family: 'Space Mono', monospace;
@@ -517,7 +533,7 @@ body {
 .message-form input:focus {
     outline: none;
     border-color: var(--primary);
-    background: var(--bg-card-hover);
+    background: rgba(19, 24, 35, 0.9);
     box-shadow: 0 0 0 4px rgba(0, 255, 245, 0.15), 0 0 15px rgba(0, 255, 245, 0.1) inset;
 }
 
@@ -553,8 +569,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    /* Keeping this dark for overlay contrast */
+    background: rgba(5, 8, 16, 0.95);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -573,7 +588,7 @@ body {
 }
 
 .modal-content {
-    background: var(--bg-card);
+    background: rgba(19, 24, 35, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(0, 255, 245, 0.2);
