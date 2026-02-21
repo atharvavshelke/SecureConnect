@@ -133,7 +133,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(800px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.06), transparent 40%);
+    background: radial-gradient(800px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.06), transparent 40%);
     opacity: 0;
     transition: opacity 0.3s;
     pointer-events: none;
@@ -211,8 +211,13 @@
 }
 
 @keyframes streamData {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
 }
 
 /* Footer modernizations */
@@ -261,9 +266,11 @@
     .bento-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
     .bento-card.col-span-2 {
         grid-column: span 2;
     }
+
     .footer-grid {
         grid-template-columns: 1fr 1fr;
     }
@@ -273,17 +280,35 @@
     .bento-grid {
         grid-template-columns: 1fr;
     }
+
     .bento-card.col-span-2 {
         grid-column: span 1;
     }
+
     .hero-title-modern {
         font-size: 2.5rem;
     }
+
     .hero-cta-group {
         flex-direction: column;
     }
+
     .footer-grid {
         grid-template-columns: 1fr;
         gap: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .landing-nav {
+        gap: 0.5rem;
+    }
+
+    .landing-nav .logo-text {
+        font-size: 1.1rem;
+    }
+
+    .hero-title-modern {
+        font-size: 2rem;
     }
 }
