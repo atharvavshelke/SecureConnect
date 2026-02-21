@@ -274,6 +274,9 @@ export const webrtc = {
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                if (peerConnection.iceConnectionState === 'connected') {
+                    ui.setCallStatus('Connected');
+                }
                 if (['disconnected', 'failed', 'closed'].includes(peerConnection.iceConnectionState)) {
                     this.endCall();
                 }

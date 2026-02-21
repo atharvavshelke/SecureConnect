@@ -9,8 +9,12 @@
     <link rel="manifest" href="/images/site.webmanifest">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SecureConnect: The next generation encrypted command center for absolute privacy. Military-grade protocols, client-side encryption, and untraceable WebRTC feeds.">
     <title>SecureConnect - Next Gen Encrypted Command Center</title>
     <!-- Using the global layout styles while appending landing-specific ones -->
+    <!-- Performance Optimizations: Preload critical CSS -->
+    <link rel="preload" href="/css/style.css" as="style">
+    <link rel="preload" href="/css/landing.css" as="style">
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/landing.css">
     <link
@@ -178,7 +182,8 @@
     </div>
 
     <!-- Mouse glowing effect for Bento Cards -->
-    <script src="/js/index.js"></script>
+    <!-- Modern performance: Defer script execution -->
+    <script src="/js/index.js" defer></script>
 </body>
 
 </html>

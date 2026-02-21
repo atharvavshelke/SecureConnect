@@ -230,6 +230,7 @@ body {
     position: relative;
     color: var(--text-primary);
     animation: glitch 3s infinite;
+    will-change: transform;
 }
 
 .glitch:before,
