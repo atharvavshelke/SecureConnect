@@ -22,6 +22,7 @@ const groupRoutes = require('./src/routes/groupRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = socketIo(server);
 
