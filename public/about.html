@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/images/site.webmanifest">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureConnect - About the Framework</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/landing.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/about.css">
+</head>
+
+<body>
+    <!-- Persistent Background Elements -->
+    <div class="noise-overlay"></div>
+    <div class="grid-background"></div>
+
+    <div class="container">
+        <!-- Modernized Navbar -->
+        <nav class="landing-nav">
+            <div class="logo">
+                <a href="/" style="text-decoration: none; display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <span class="logo-text">SecureConnect</span>
+                </a>
+            </div>
+            <div class="nav-actions">
+                <a href="/login" class="btn btn-primary"
+                    style="padding: 0.5rem 1.5rem; font-size: 0.9rem; text-decoration: none;">
+                    <span>Login</span>
+                </a>
+            </div>
+        </nav>
+
+        <main class="landing-main">
+            <!-- Hero Wrapper explicitly for Interior pages -->
+            <section class="hero-wrapper" style="margin-bottom: 0;">
+                <h1 class="hero-title-modern" style="font-size: 3.5rem;">
+                    <span class="highlight">The Philosophy.</span>
+                </h1>
+                <p class="hero-subtitle-modern">
+                    We didn't just build a chat app. We engineered a sovereign communications relay.
+                </p>
+            </section>
+
+            <section class="about-content">
+                <h2>Why we exist</h2>
+                <p>
+                    In an era of mass surveillance, data brokering, and centralized control over communications, true
+                    privacy is no longer a default—it is an act of digital rebellion. SecureConnect was founded by a
+                    collective of paranoid engineers and cryptographers who believe that your conversations belong
+                    exclusively to you and the people you talk to. No one else.
+                </p>
+
+                <h2>Technical Non-Negotiables</h2>
+                <ul>
+                    <li><strong>Client-Side Authority.</strong> Our servers never see unencrypted data. Plausible
+                        deniability is enforced
+                        at the network layer. Cryptographic keys are generated, stored, and utilized entirely within
+                        your browser via the Web Crypto API.</li>
+                    <li><strong>Hybrid Cryptography Stack.</strong> We use RSA-OAEP (2048-bit) for initial secure key
+                        handshakes and dynamic AES-GCM (256-bit) for ultra-fast, unbreakable symmetric message
+                        encryption. Every single message rotates its symmetric key.</li>
+                    <li><strong>WebRTC Peer-to-Peer.</strong> Our voice and video calling features do not route media
+                        through our signaling servers. We establish direct P2P mesh networks between trusted clients for
+                        high-fidelity, zero-latency, untraceable A/V feeds.</li>
+                    <li><strong>Zero Persistence Storage.</strong> We monitor nothing and we log nothing. Ephemeral data
+                        remains purely in memory until transport terminates. Any data at rest (like your encrypted RSA
+                        private key) is double-encrypted using PBKDF2 derivatives of your password before it ever
+                        touches our SQLite database.</li>
+                    <li><strong>Open Verification.</strong> The cryptographic modules powering the platform remain
+                        entirely transparent,
+                        auditable, and un-obfuscated. Built on Node.js and Express.js, the backend is designed for
+                        self-hosting and full community inspection.</li>
+                </ul>
+
+                <h2>The Architecture of Distrust</h2>
+                <p>
+                    We operate on a 'Zero Trust' architecture. We built SecureConnect under the explicit assumption that
+                    our infrastructure is openly compromised. A compromised routing server only reveals encoded
+                    gibberish. Furthermore, we regulate our network health through a rigorous "Cryptographic Credit
+                    Economy" administered by automated systems and human moderators to prevent spam and Sybil attacks.
+                </p>
+                <p>
+                    You don't have to trust us—our mathematics guarantee it.
+                </p>
+            </section>
+        </main>
+
+        <footer class="footer landing-footer">
+            <div class="footer-links" style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
+                <a href="/about" style="color: var(--text-secondary); text-decoration: none;">About Us</a>
+                <a href="/contact" style="color: var(--text-secondary); text-decoration: none;">Contact Us</a>
+            </div>
+            <div class="status-indicator" style="justify-content: center;">
+                <span class="status-dot"></span> All Systems Operational
+            </div>
+            <div style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.8rem;">
+                &copy; 2026 SecureConnect Framework.
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>

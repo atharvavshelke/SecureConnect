@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+    <link rel="manifest" href="/images/site.webmanifest">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureConnect - Intel Dispatch</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/landing.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/contact.css">
+</head>
+
+<body>
+    <!-- Persistent Background Elements -->
+    <div class="noise-overlay"></div>
+    <div class="grid-background"></div>
+
+    <div class="container">
+        <!-- Modernized Navbar -->
+        <nav class="landing-nav">
+            <div class="logo">
+                <a href="/" style="text-decoration: none; display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <span class="logo-text">SecureConnect</span>
+                </a>
+            </div>
+            <div class="nav-actions">
+                <a href="/login" class="btn btn-primary"
+                    style="padding: 0.5rem 1.5rem; font-size: 0.9rem; text-decoration: none;">
+                    <span>Login</span>
+                </a>
+            </div>
+        </nav>
+
+        <main class="landing-main">
+            <!-- Hero Wrapper explicitly for Interior pages -->
+            <section class="hero-wrapper" style="margin-bottom: 0;">
+                <h1 class="hero-title-modern" style="font-size: 3.5rem;">
+                    <span class="highlight">Intelligence Dispatch.</span>
+                </h1>
+                <p class="hero-subtitle-modern">
+                    Establish a secure line with the development operators. All non-encrypted queries may be
+                    intercepted. Proceed with caution.
+                </p>
+            </section>
+
+            <section class="contact-grid">
+                <div class="terminal-block">
+                    <h3 style="color: var(--text-primary); margin-bottom: 1rem; font-family: 'Orbitron', sans-serif;">
+                        Clear-text Dispatch</h3>
+                    <form class="contact-form" id="contactForm">
+                        <div class="form-group">
+                            <label>Designation (Alias)</label>
+                            <input type="text" required placeholder="User-5942">
+                        </div>
+                        <div class="form-group">
+                            <label>Return Vector (Email)</label>
+                            <input type="email" required placeholder="null_route@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Payload (Message)</label>
+                            <textarea rows="5" required
+                                style="padding: 0.875rem 1rem; background: rgba(5, 8, 16, 0.6); border: 1px solid rgba(45, 55, 72, 0.8); border-radius: 6px; color: var(--text-primary); font-family: 'Space Mono', monospace; width: 100%;"
+                                placeholder="Enter unclassified comms here..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%;">Initiate Handshake</button>
+                    </form>
+                </div>
+
+                <div>
+                    <h3 style="color: var(--primary); margin-bottom: 1rem; font-family: 'Orbitron', sans-serif;">
+                        Encrypted Channels</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                        For high-clearance disclosures, vulnerability reports, or business inquiries requiring
+                        zero-knowledge, use our public key.
+                    </p>
+
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <svg style="width: 24px; color: var(--warning);" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <span style="color: var(--text-primary);">Fingerprint: </span>
+                    </div>
+                    <code
+                        style="background: rgba(255, 170, 0, 0.1); padding: 0.5rem; border-radius: 4px; color: var(--warning); display: block; margin-bottom: 2rem;">A1B2 C3D4 E5F6 7890 1234 5678 9ABC DEF0 1234</code>
+
+                    <h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">SC_ADMIN PGP Public Key</h4>
+                    <div class="pgp-block">
+                        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+                        mQINBGPV25cBEAC9z4oYm/3q+a2x9uJ8pW5q...
+                        [REDACTED FOR DEMONSTRATION]
+                        rY1o7P9Z2bQ=
+                        =1v8J
+                        -----END PGP PUBLIC KEY BLOCK-----
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer landing-footer">
+            <div class="footer-links" style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
+                <a href="/about" style="color: var(--text-secondary); text-decoration: none;">About Us</a>
+                <a href="/contact" style="color: var(--text-secondary); text-decoration: none;">Contact Us</a>
+            </div>
+            <div class="status-indicator" style="justify-content: center;">
+                <span class="status-dot"></span> All Systems Operational
+            </div>
+            <div style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.8rem;">
+                &copy; 2026 SecureConnect Framework.
+            </div>
+        </footer>
+    </div>
+    <script src="/js/contact.js"></script>
+</body>
+
+</html>
